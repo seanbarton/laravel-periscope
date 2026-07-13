@@ -1,0 +1,44 @@
+{
+    "name": "seanbarton/laravel-periscope",
+    "description": "A lightweight companion UI for Laravel Telescope with URL-driven filtering and search.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Sean Barton",
+            "role": "Owner"
+        }
+    ],
+    "keywords": [
+        "laravel",
+        "telescope",
+        "debugging",
+        "observability",
+        "periscope"
+    ],
+    "autoload": {
+        "psr-4": {
+            "TortoiseIT\\LaravelPeriscope\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "TortoiseIT\\LaravelPeriscope\\LaravelPeriscopeServiceProvider"
+            ]
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "illuminate/contracts": "^10.0|^11.0|^12.0|^13.0",
+        "illuminate/database": "^10.0|^11.0|^12.0|^13.0",
+        "illuminate/routing": "^10.0|^11.0|^12.0|^13.0",
+        "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
+        "laravel/telescope": "^4.0|^5.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.0"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
