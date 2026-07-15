@@ -12,7 +12,9 @@ Copyright 2026 Sean Barton, Tortoise IT Limited.
 - Adds date range filtering, live list watch mode, type filters, text search, status/method/path filters, and an errors-only scan.
 - Provides detail views for requests, logs, mail, queries, jobs, gates, exceptions, views, models, cache, events, and HTTP client entries.
 - Provides a lifecycle view for a request batch so related Telescope entries can be inspected in sequence.
+- Shows related error flow and application stack traces with expandable source previews.
 - Suppresses Periscope/Telescope dashboard noise from Laravel Debugbar by default.
+- Suppresses Periscope-generated Telescope entries by default.
 
 ## Security
 
@@ -101,7 +103,7 @@ return [
 
 `PERISCOPE_DB_CONNECTION` can be used when Telescope stores entries on a non-default database connection.
 
-`PERISCOPE_EXCLUDE_FROM_TELESCOPE=true` automatically adds the Periscope path to Telescope's ignored paths.
+`PERISCOPE_EXCLUDE_FROM_TELESCOPE=true` automatically adds the Periscope path to Telescope's ignored paths and suppresses Telescope recording while Periscope pages are being served.
 
 `PERISCOPE_DISABLE_DEBUGBAR=true` automatically disables Debugbar while Periscope is rendering and adds the Periscope/Telescope dashboard paths to Debugbar's ignored paths.
 
@@ -158,37 +160,7 @@ PERISCOPE_DISABLE_DEBUGBAR=false
 PERISCOPE_EXCLUDE_DEBUGBAR_ENTRIES=false
 ```
 
-`telescope.ignore_paths` is enough to suppress the Periscope request entries themselves. In some applications, Telescope may still record query, model, view, cache, or log entries generated while serving the Periscope page. If you need Telescope to be completely isolated from Periscope-generated traffic, add a request-path guard to the host application's `app/Providers/TelescopeServiceProvider.php`.
-
-Keep your existing filter logic, but return `false` before it when the current request is for Periscope:
-
-```php
-use Laravel\Telescope\IncomingEntry;
-use Laravel\Telescope\Telescope;
-
-Telescope::filter(function (IncomingEntry $entry) {
-    if (request()->is('periscope*')) {
-        return false;
-    }
-
-    return app()->environment('local')
-        || $entry->isReportableException()
-        || $entry->isFailedRequest()
-        || $entry->isFailedJob()
-        || $entry->isScheduledTask()
-        || $entry->hasMonitoredTag();
-});
-```
-
-If Periscope is mounted at a custom path, match that path instead:
-
-```php
-if (request()->is('internal/periscope*')) {
-    return false;
-}
-```
-
-This host-application guard prevents Telescope from recording requests, queries, views, model events, logs, and similar entries generated while Periscope pages are being served. It only affects Periscope dashboard traffic; normal application traffic is still handled by your existing Telescope filter.
+Periscope adds its configured path to `telescope.ignore_paths`, rejects Telescope entries while the current request is for Periscope, and pauses/flushes Telescope recording around Periscope route handling. This prevents Periscope dashboard refreshes from recording request, query, view, model, cache, log, and similar Telescope entries. It only affects Periscope dashboard traffic; normal application traffic is still handled by your existing Telescope configuration.
 
 ## Publishing
 

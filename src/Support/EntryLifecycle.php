@@ -2,24 +2,40 @@
 
 namespace TortoiseIT\LaravelPeriscope\Support;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class EntryLifecycle
 {
+    public function __construct(private readonly TraceFormatter $traceFormatter)
+    {
+    }
+
     public function build(object $selectedEntry, Collection $entries): array
     {
         $requestEntry = $selectedEntry->type === 'request'
             ? $selectedEntry
             : $entries->first(fn (object $entry) => $entry->type === 'request');
+        $events = $entries
+            ->values()
+            ->map(fn (object $entry, int $index) => $this->eventFor($entry, $selectedEntry, $requestEntry, $index + 1))
+            ->reject(fn (array $event) => $this->isVendorEvent($event))
+            ->values()
+            ->map(fn (array $event, int $index) => array_replace($event, ['position' => $index + 1]));
 
         return [
             'request' => $requestEntry,
             'classification' => $requestEntry ? $this->classifyRequest($requestEntry) : null,
+            'request_context' => $requestEntry ? $this->requestContextFor($requestEntry) : null,
             'summary' => $this->summarize($requestEntry, $entries),
-            'phases' => $entries
-                ->values()
-                ->map(fn (object $entry, int $index) => $this->eventFor($entry, $selectedEntry, $requestEntry, $index + 1))
+            'error_trail' => $this->traceFormatter->errorTrail($entries),
+            'query_health' => $this->queryHealthFor($entries),
+            'external_health' => $this->externalHealthFor($entries),
+            'pre_error_context' => $this->preErrorContextFor($entries),
+            'debug_bundle' => $this->debugBundleFor($requestEntry, $entries),
+            'timeline' => $this->timelineFor($events),
+            'phases' => $events
                 ->groupBy('phase')
                 ->map(fn (Collection $events, string $phase) => [
                     'key' => $phase,
@@ -29,6 +45,257 @@ class EntryLifecycle
                 ->sortBy(fn (array $phase) => array_search($phase['key'], $this->phaseOrder(), true))
                 ->values(),
         ];
+    }
+
+    private function requestContextFor(object $entry): array
+    {
+        $content = $entry->content;
+        $headers = array_change_key_case($content['headers'] ?? [], CASE_LOWER);
+        $payload = $content['payload'] ?? [];
+        $middleware = $content['middleware'] ?? [];
+
+        return [
+            'method' => $this->stringValue($content['method'] ?? null),
+            'path' => $this->stringValue($content['uri'] ?? $content['url'] ?? null),
+            'controller' => $this->stringValue($content['controller_action'] ?? null),
+            'status' => $content['response_status'] ?? $content['status'] ?? null,
+            'user' => $this->userFor($content),
+            'ip' => $this->stringValue($content['ip_address'] ?? $content['ip'] ?? null),
+            'payload_keys' => is_array($payload) ? collect(array_keys($payload))->take(8)->implode(', ') : null,
+            'middleware_count' => is_array($middleware) ? count($middleware) : null,
+            'accept' => $this->headerValue($headers, 'accept') ?: null,
+        ];
+    }
+
+    private function queryHealthFor(Collection $entries): array
+    {
+        $queries = $entries->where('type', 'query')->values();
+        $queryRows = $queries->map(function (object $entry): array {
+            $sql = $this->stringValue($entry->content['sql'] ?? null) ?? $entry->summary['title'];
+
+            return [
+                'sql' => $sql,
+                'fingerprint' => $this->queryFingerprint($sql),
+                'duration' => $this->durationMs($entry->summary['duration']),
+                'caller' => $entry->summary['caller'],
+                'is_slow' => (bool) ($entry->content['slow'] ?? false),
+            ];
+        });
+        $duplicates = $queryRows
+            ->groupBy('fingerprint')
+            ->map(fn (Collection $group) => [
+                'count' => $group->count(),
+                'sql' => $group->first()['sql'],
+                'total_duration' => round((float) $group->sum('duration'), 2),
+            ])
+            ->filter(fn (array $group) => $group['count'] > 1)
+            ->sortByDesc('count')
+            ->take(5)
+            ->values();
+        $slowest = $queryRows->sortByDesc('duration')->first();
+
+        return [
+            'total' => $queries->count(),
+            'slow' => $queryRows->where('is_slow', true)->count(),
+            'total_duration' => round((float) $queryRows->sum('duration'), 2),
+            'duplicate_groups' => $duplicates,
+            'slowest' => $slowest,
+        ];
+    }
+
+    private function externalHealthFor(Collection $entries): array
+    {
+        $calls = $entries->where('type', 'client_request')->values();
+        $rows = $calls->map(function (object $entry): array {
+            $url = $this->stringValue($entry->content['url'] ?? null) ?? $entry->summary['title'];
+            $status = $entry->summary['status'];
+
+            return [
+                'host' => parse_url($url, PHP_URL_HOST) ?: 'unknown host',
+                'url' => $url,
+                'method' => $this->stringValue($entry->content['method'] ?? null),
+                'status' => $status,
+                'duration' => $this->durationMs($entry->summary['duration']),
+                'failed' => is_numeric($status) && (int) $status >= 400,
+            ];
+        });
+
+        return [
+            'total' => $calls->count(),
+            'failed' => $rows->where('failed', true)->count(),
+            'hosts' => $rows->groupBy('host')->map->count()->sortDesc()->take(5),
+            'slowest' => $rows->sortByDesc('duration')->first(),
+        ];
+    }
+
+    private function preErrorContextFor(Collection $entries): Collection
+    {
+        $entries = $entries->sortBy('sequence')->values();
+
+        return $entries
+            ->filter(fn (object $entry) => $this->severityFor($entry) === 'error')
+            ->map(function (object $error) use ($entries): array {
+                $before = $entries
+                    ->filter(fn (object $entry) => $entry->sequence < $error->sequence)
+                    ->filter(fn (object $entry) => in_array($entry->type, ['query', 'log', 'client_request', 'view', 'mail', 'job'], true))
+                    ->take(-5)
+                    ->values()
+                    ->map(fn (object $entry) => [
+                        'uuid' => $entry->uuid,
+                        'type' => $entry->type,
+                        'label' => EntryType::labelFor($entry->type),
+                        'title' => $entry->summary['title'],
+                        'duration' => $entry->summary['duration'],
+                        'status' => $entry->summary['status'],
+                        'caller' => $entry->summary['caller'],
+                    ]);
+
+                return [
+                    'error_uuid' => $error->uuid,
+                    'error_title' => $error->summary['title'],
+                    'items' => $before,
+                ];
+            })
+            ->filter(fn (array $group) => $group['items']->isNotEmpty())
+            ->values();
+    }
+
+    private function debugBundleFor(?object $requestEntry, Collection $entries): string
+    {
+        $errors = $this->traceFormatter->errorTrail($entries);
+        $firstError = $errors->first();
+        $firstFrame = $firstError['trace']['first_app_frame'] ?? null;
+        $context = $requestEntry ? $this->requestContextFor($requestEntry) : [];
+        $lastQuery = $entries->where('type', 'query')->sortBy('sequence')->last();
+
+        return collect([
+            'Periscope Debug Bundle',
+            'Request: '.trim(($context['method'] ?? '').' '.($context['path'] ?? 'Unknown')),
+            'Status: '.($context['status'] ?? 'Unknown'),
+            'User: '.($context['user'] ?? 'Guest/unknown'),
+            'Controller: '.($context['controller'] ?? 'Unknown'),
+            'Error: '.($firstError['title'] ?? 'None'),
+            'First app frame: '.($firstFrame ? ($firstFrame['relative_file'].($firstFrame['line'] ? ':'.$firstFrame['line'] : '')) : 'None'),
+            'Last query: '.($lastQuery ? $this->queryBundleSummary($lastQuery->summary['title']) : 'None'),
+        ])->implode("\n");
+    }
+
+    private function queryBundleSummary(string $sql): string
+    {
+        $normalized = strtolower($sql);
+
+        if (str_contains($normalized, 'update `sessions` set `payload`')
+            || str_contains($normalized, 'update sessions set payload')) {
+            return 'Session write query';
+        }
+
+        return Str::limit($sql, 220);
+    }
+
+    private function timelineFor(Collection $events): array
+    {
+        $startedAt = $events
+            ->pluck('started_at')
+            ->filter()
+            ->map(fn ($value) => Carbon::parse($value))
+            ->sort()
+            ->first();
+        $maxDuration = max(1, (int) $events->max(fn (array $event) => $this->durationMs($event['duration']) ?? 0));
+
+        return [
+            'max_duration' => $maxDuration,
+            'events' => $events
+                ->map(function (array $event) use ($startedAt, $maxDuration): array {
+                    $duration = $this->durationMs($event['duration']);
+                    $offset = $startedAt && $event['started_at']
+                        ? max(0, $startedAt->diffInMilliseconds(Carbon::parse($event['started_at'])))
+                        : null;
+
+                    return $event + [
+                        'duration_ms' => $duration,
+                        'duration_width' => $duration ? max(5, min(100, (int) round(($duration / $maxDuration) * 100))) : 0,
+                        'offset_ms' => $offset,
+                        'offset_label' => $offset === null ? '--' : '+'.$offset.' ms',
+                    ];
+                })
+                ->values(),
+        ];
+    }
+
+    private function durationMs(mixed $duration): ?float
+    {
+        if ($duration === null || $duration === '') {
+            return null;
+        }
+
+        if (is_numeric($duration)) {
+            return round((float) $duration, 2);
+        }
+
+        if (is_string($duration) && preg_match('/[\d.]+/', $duration, $matches) === 1) {
+            return round((float) $matches[0], 2);
+        }
+
+        return null;
+    }
+
+    private function queryFingerprint(string $sql): string
+    {
+        $sql = strtolower(preg_replace('/\s+/', ' ', trim($sql)) ?: $sql);
+        $sql = preg_replace("/'(?:[^'\\\\]|\\\\.)*'/", '?', $sql) ?? $sql;
+        $sql = preg_replace('/\b\d+(?:\.\d+)?\b/', '?', $sql) ?? $sql;
+
+        return $sql;
+    }
+
+    private function stringValue(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        if (is_array($value)) {
+            $values = collect($value)
+                ->flatten()
+                ->filter(fn ($item) => is_scalar($item) && $item !== '')
+                ->map(fn ($item) => (string) $item)
+                ->values();
+
+            return $values->isNotEmpty() ? $values->implode(', ') : null;
+        }
+
+        return null;
+    }
+
+    private function isVendorEvent(array $event): bool
+    {
+        if ($event['type'] === 'request') {
+            return false;
+        }
+
+        $content = $event['content'] ?? [];
+        $haystack = collect([
+            $event['title'] ?? null,
+            $event['subtitle'] ?? null,
+            $event['caller'] ?? null,
+            $event['output'] ?? null,
+            $content['file'] ?? null,
+            $content['path'] ?? null,
+            $content['view'] ?? null,
+            $content['class'] ?? null,
+            $content['name'] ?? null,
+        ])
+            ->flatten()
+            ->filter(fn ($value) => is_scalar($value))
+            ->map(fn ($value) => str_replace('\\', '/', strtolower((string) $value)))
+            ->implode(' ');
+
+        return str_contains($haystack, '/vendor/')
+            || str_starts_with($haystack, 'vendor/');
     }
 
     private function classifyRequest(object $entry): array

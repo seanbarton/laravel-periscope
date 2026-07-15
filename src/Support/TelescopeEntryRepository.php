@@ -366,6 +366,8 @@ class TelescopeEntryRepository
     private function summary(object $entry): array
     {
         $content = $entry->content;
+        $path = $this->stringValue($content['path'] ?? null);
+        $file = $this->stringValue($content['file'] ?? null);
 
         return [
             'title' => $this->titleFor($entry->type, $content),
@@ -385,7 +387,7 @@ class TelescopeEntryRepository
             'user' => $this->userFor($content),
             'user_id' => $this->userIdFor($content),
             'slow' => (bool) ($content['slow'] ?? false),
-            'path' => isset($content['path']) ? $this->relativePath($content['path']) : (isset($content['file']) ? $this->relativePath($content['file']) : null),
+            'path' => $path ? $this->relativePath($path) : ($file ? $this->relativePath($file) : null),
             'channel' => $this->channelFor($content),
         ];
     }
@@ -393,43 +395,48 @@ class TelescopeEntryRepository
     private function titleFor(string $type, array $content): string
     {
         return match ($type) {
-            'request' => trim(($content['method'] ?? '').' '.($content['uri'] ?? $content['url'] ?? 'Request')),
-            'query' => $content['sql'] ?? 'Database query',
-            'log' => $content['message'] ?? 'Log entry',
-            'mail' => $content['mailable'] ?? $content['subject'] ?? 'Mail',
-            'exception' => $content['class'] ?? $content['message'] ?? 'Exception',
-            'job' => $content['name'] ?? $content['job'] ?? 'Job',
-            'command' => $content['command'] ?? 'Command',
-            'cache' => $content['key'] ?? $content['name'] ?? 'Cache',
-            'client_request' => $this->componentFor($content) ?? trim(($content['method'] ?? '').' '.($content['url'] ?? 'HTTP client')),
-            'event' => $content['name'] ?? $content['event'] ?? $content['class'] ?? 'Event',
-            'gate' => $content['ability'] ?? 'Gate',
-            'model' => $content['model'] ?? $content['class'] ?? 'Model',
-            'view' => $content['name'] ?? $content['view'] ?? 'View',
+            'request' => trim(($this->stringValue($content['method'] ?? null) ?? '').' '.($this->stringValue($content['uri'] ?? null) ?? $this->stringValue($content['url'] ?? null) ?? 'Request')),
+            'query' => $this->stringValue($content['sql'] ?? null) ?? 'Database query',
+            'log' => $this->stringValue($content['message'] ?? null) ?? 'Log entry',
+            'mail' => $this->stringValue($content['mailable'] ?? null) ?? $this->stringValue($content['subject'] ?? null) ?? 'Mail',
+            'exception' => $this->stringValue($content['class'] ?? null) ?? $this->stringValue($content['message'] ?? null) ?? 'Exception',
+            'job' => $this->stringValue($content['name'] ?? null) ?? $this->stringValue($content['job'] ?? null) ?? 'Job',
+            'command' => $this->stringValue($content['command'] ?? null) ?? 'Command',
+            'cache' => $this->stringValue($content['key'] ?? null) ?? $this->stringValue($content['name'] ?? null) ?? 'Cache',
+            'client_request' => $this->componentFor($content) ?? trim(($this->stringValue($content['method'] ?? null) ?? '').' '.($this->stringValue($content['url'] ?? null) ?? 'HTTP client')),
+            'event' => $this->stringValue($content['name'] ?? null) ?? $this->stringValue($content['event'] ?? null) ?? $this->stringValue($content['class'] ?? null) ?? 'Event',
+            'gate' => $this->stringValue($content['ability'] ?? null) ?? 'Gate',
+            'model' => $this->stringValue($content['model'] ?? null) ?? $this->stringValue($content['class'] ?? null) ?? 'Model',
+            'view' => $this->stringValue($content['name'] ?? null) ?? $this->stringValue($content['view'] ?? null) ?? 'View',
             default => ucfirst($type),
         };
     }
 
     private function subtitleFor(string $type, array $content): ?string
     {
+        $file = $this->stringValue($content['file'] ?? null);
+        $path = $this->stringValue($content['path'] ?? null);
+
         return match ($type) {
-            'request' => $content['controller_action'] ?? $content['middleware'] ?? null,
-            'query' => isset($content['file'], $content['line']) ? $this->relativePath($content['file']).':'.$content['line'] : null,
-            'log', 'exception' => isset($content['file']) ? $this->relativePath($content['file']) : null,
-            'mail' => $content['to'][0]['address'] ?? $content['to'][0] ?? null,
-            'job' => collect([$content['connection'] ?? null, $content['queue'] ?? null])->filter()->implode(' / ') ?: null,
-            'view' => isset($content['path']) ? $this->relativePath($content['path']) : null,
-            default => $content['connection'] ?? $content['queue'] ?? null,
+            'request' => $this->stringValue($content['controller_action'] ?? null) ?? $this->stringValue($content['middleware'] ?? null),
+            'query' => $file && isset($content['line']) ? $this->relativePath($file).':'.$this->stringValue($content['line']) : null,
+            'log', 'exception' => $file ? $this->relativePath($file) : null,
+            'mail' => $this->mailAddressFor($content['to'] ?? null),
+            'job' => collect([$this->stringValue($content['connection'] ?? null), $this->stringValue($content['queue'] ?? null)])->filter()->implode(' / ') ?: null,
+            'view' => $path ? $this->relativePath($path) : null,
+            default => $this->stringValue($content['connection'] ?? null) ?? $this->stringValue($content['queue'] ?? null),
         };
     }
 
     private function callerFor(string $type, array $content): ?string
     {
+        $file = $this->stringValue($content['file'] ?? null);
+
         return match ($type) {
-            'request' => $content['controller_action'] ?? null,
-            'query', 'exception' => isset($content['file'], $content['line']) ? $this->relativePath($content['file']).':'.$content['line'] : (isset($content['file']) ? $this->relativePath($content['file']) : null),
-            'job' => $content['name'] ?? null,
-            'command' => $content['command'] ?? null,
+            'request' => $this->stringValue($content['controller_action'] ?? null),
+            'query', 'exception' => $file && isset($content['line']) ? $this->relativePath($file).':'.$this->stringValue($content['line']) : ($file ? $this->relativePath($file) : null),
+            'job' => $this->stringValue($content['name'] ?? null),
+            'command' => $this->stringValue($content['command'] ?? null),
             default => null,
         };
     }
@@ -438,12 +445,12 @@ class TelescopeEntryRepository
     {
         return match ($type) {
             'log' => $this->logContextPreview($content['context'] ?? null),
-            'exception' => $content['message'] ?? null,
-            'query' => $content['sql'] ?? null,
-            'event' => $content['name'] ?? $content['event'] ?? $content['class'] ?? null,
+            'exception' => $this->stringValue($content['message'] ?? null),
+            'query' => $this->stringValue($content['sql'] ?? null),
+            'event' => $this->stringValue($content['name'] ?? null) ?? $this->stringValue($content['event'] ?? null) ?? $this->stringValue($content['class'] ?? null),
             'gate' => isset($content['result']) ? ($content['result'] ? 'Allowed' : 'Denied') : null,
-            'model' => collect([$content['action'] ?? null, $content['count'] ?? null])->filter(fn ($value) => $value !== null && $value !== '')->implode(' / ') ?: null,
-            'view' => isset($content['path']) ? $this->relativePath($content['path']) : null,
+            'model' => collect([$this->stringValue($content['action'] ?? null), $this->stringValue($content['count'] ?? null)])->filter(fn ($value) => $value !== null && $value !== '')->implode(' / ') ?: null,
+            'view' => ($path = $this->stringValue($content['path'] ?? null)) ? $this->relativePath($path) : null,
             default => null,
         };
     }
@@ -573,6 +580,46 @@ class TelescopeEntryRepository
         }
 
         return is_scalar($value) ? (string) $value : '';
+    }
+
+    private function mailAddressFor(mixed $addresses): ?string
+    {
+        if (! is_array($addresses)) {
+            return $this->stringValue($addresses);
+        }
+
+        $first = $addresses[0] ?? $addresses;
+
+        if (is_array($first)) {
+            return $this->stringValue($first['address'] ?? null)
+                ?? $this->stringValue($first['email'] ?? null)
+                ?? $this->stringValue($first['name'] ?? null);
+        }
+
+        return $this->stringValue($first);
+    }
+
+    private function stringValue(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        if (is_array($value)) {
+            $values = collect($value)
+                ->flatten()
+                ->filter(fn ($item) => is_scalar($item) && $item !== '')
+                ->map(fn ($item) => (string) $item)
+                ->values();
+
+            return $values->isNotEmpty() ? $values->implode(', ') : null;
+        }
+
+        return null;
     }
 
     public function relativePath(?string $path): ?string

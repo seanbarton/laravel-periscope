@@ -2,6 +2,20 @@
 
 All notable changes to Laravel Periscope will be documented in this file.
 
+## v0.2.0 - 2026-07-15
+
+- Added stronger status badges with dark red 5xx/error states and clearer warning/success styling.
+- Added stack trace support for exception details and related error views.
+- Added expandable source previews with syntax highlighting, compact default context, method-level expansion, surrounding whitespace, and PHPDoc inclusion.
+- Added request lifecycle debugging improvements including page load flow, timeline tabs, overview/error sections, debug insights, query health, external call health, and pre-error context.
+- Added copyable debug bundles for lifecycle investigations.
+- Hid vendor and Laravel core frames from application-focused stack traces and page load flow views.
+- Added request detail referrer display when Telescope captures `referer` or `referrer` headers.
+- Added Telescope recording suppression for Periscope pages so dashboard refreshes do not create request, query, cache, model, view, log, or similar Telescope entries.
+- Added reusable partials for status badges and stack traces.
+- Hardened Telescope entry normalization so array values do not break titles, subtitles, callers, previews, paths, or mail addresses.
+- Refined the visual palette so red remains the dominant error signal and warnings/brand accents are less visually noisy.
+
 ## v0.1.0 - 2026-07-13
 
 - Initial public package release.

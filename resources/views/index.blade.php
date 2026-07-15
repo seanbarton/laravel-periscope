@@ -1,19 +1,6 @@
 @extends('periscope::layout', ['title' => config('periscope.name', 'Periscope')])
 
 @php
-    $statusClass = function ($status) {
-        if ($status === null || $status === '') {
-            return '';
-        }
-
-        if (is_string($status) && ! is_numeric($status)) {
-            return in_array(strtolower($status), ['error', 'critical', 'alert', 'emergency'], true) ? 'error' : '';
-        }
-
-        $status = (int) $status;
-        return $status >= 500 ? 'error' : ($status >= 400 ? 'warn' : ($status >= 200 && $status < 400 ? 'ok' : ''));
-    };
-
     $queryWithoutBefore = request()->except('before');
     $shownTypes = $typeCounts->pluck('type')->unique()->values();
     $typeCountByType = $typeCounts->keyBy('type');
@@ -177,7 +164,7 @@
                                         @case('status')
                                             <td>
                                                 @if ($entry->summary['status'] !== null)
-                                                    <span class="badge {{ $statusClass($entry->summary['status']) }}">{{ $entry->summary['status'] }}</span>
+                                                    @include('periscope::partials.status-badge', ['status' => $entry->summary['status']])
                                                 @endif
                                             </td>
                                             @break

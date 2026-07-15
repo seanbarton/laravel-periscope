@@ -3,19 +3,6 @@
 @php
     $content = $entry->content;
 
-    $statusClass = function ($status) {
-        if ($status === null || $status === '') {
-            return '';
-        }
-
-        if (is_string($status) && ! is_numeric($status)) {
-            return in_array(strtolower($status), ['error', 'critical', 'alert', 'emergency'], true) ? 'error' : '';
-        }
-
-        $status = (int) $status;
-        return $status >= 500 ? 'error' : ($status >= 400 ? 'warn' : ($status >= 200 && $status < 400 ? 'ok' : ''));
-    };
-
     $pretty = fn ($value) => json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     $stringify = function ($value) use ($pretty) {
         if (is_bool($value)) {
@@ -68,6 +55,21 @@
 
     $payload = $content['payload'] ?? $content['data'] ?? $content['bindings'] ?? [];
     $requestHeaders = $content['headers'] ?? [];
+    $normalizedRequestHeaders = is_array($requestHeaders) ? array_change_key_case($requestHeaders, CASE_LOWER) : [];
+    $headerValue = function (array $headers, string $key): ?string {
+        $value = $headers[strtolower($key)] ?? null;
+
+        if (is_array($value)) {
+            $value = collect($value)
+                ->flatten()
+                ->filter(fn ($item) => is_scalar($item))
+                ->implode(', ');
+        }
+
+        return is_scalar($value) && (string) $value !== '' ? (string) $value : null;
+    };
+    $referrer = $headerValue($normalizedRequestHeaders, 'referer')
+        ?? $headerValue($normalizedRequestHeaders, 'referrer');
     $session = $content['session'] ?? [];
     $response = $content['response'] ?? $content['raw'] ?? $content['html'] ?? null;
     $responseHeaders = $content['response_headers'] ?? [];
@@ -181,7 +183,7 @@
                     @if ($entry->summary['status'] !== null)
                         <div class="summary-item">
                             <div class="summary-label">Status</div>
-                            <div class="summary-value"><span class="badge {{ $statusClass($entry->summary['status']) }}">{{ $entry->summary['status'] }}</span></div>
+                            <div class="summary-value">@include('periscope::partials.status-badge', ['status' => $entry->summary['status']])</div>
                         </div>
                     @endif
                     @if ($content['uri'] ?? $content['url'] ?? null)
@@ -217,6 +219,18 @@
                         <div class="summary-item">
                             <div class="summary-label">IP</div>
                             <div class="summary-value">{{ $content['ip_address'] }}</div>
+                        </div>
+                    @endif
+                    @if ($entry->type === 'request' && $referrer)
+                        <div class="summary-item">
+                            <div class="summary-label">Referrer</div>
+                            <div class="summary-value">
+                                @if (str_starts_with($referrer, 'http://') || str_starts_with($referrer, 'https://'))
+                                    <a href="{{ $referrer }}" target="_blank" rel="noreferrer">{{ $referrer }}</a>
+                                @else
+                                    {{ $referrer }}
+                                @endif
+                            </div>
                         </div>
                     @endif
                 </div>
@@ -257,6 +271,84 @@
                     <span>Context</span>
                 </div>
                 <pre>{{ $pretty($displayContext) }}</pre>
+            </section>
+        @endif
+
+        @if ($errorTrail->isNotEmpty())
+            <section class="panel error-flow-panel">
+                <div class="panel-title">
+                    <span>Related Errors</span>
+                    <span class="hint">{{ $errorTrail->count() }} related error {{ \Illuminate\Support\Str::plural('entry', $errorTrail->count()) }} in this batch</span>
+                </div>
+
+                <div class="error-flow">
+                    @foreach ($errorTrail as $errorEvent)
+                        @php
+                            $firstFrame = $errorEvent['trace']['first_app_frame'] ?? null;
+                            $isCurrentEntry = $errorEvent['uuid'] === $entry->uuid;
+                        @endphp
+                        <article @class(['error-flow-item', 'current' => $isCurrentEntry])>
+                            <div class="error-flow-marker">{{ str_pad((string) $errorEvent['position'], 2, '0', STR_PAD_LEFT) }}</div>
+                            <div class="error-flow-card">
+                                <div class="error-trail-head">
+                                    <a href="{{ route('periscope.entries.show', ['uuid' => $errorEvent['uuid']] + request()->query()) }}">
+                                        {{ $errorEvent['label'] }}
+                                        @if ($isCurrentEntry)
+                                            <span class="badge info">Current</span>
+                                        @endif
+                                    </a>
+                                    @if ($errorEvent['status'] !== null && $errorEvent['status'] !== '')
+                                        @include('periscope::partials.status-badge', ['status' => $errorEvent['status']])
+                                    @endif
+                                </div>
+                                <div class="error-trail-title">{{ $errorEvent['title'] }}</div>
+                                @if ($errorEvent['message'])
+                                    <div class="node-subtitle">{{ \Illuminate\Support\Str::limit($errorEvent['message'], 220) }}</div>
+                                @endif
+                                @if ($firstFrame)
+                                    <div class="trace-list compact">
+                                        @include('periscope::partials.stack-trace', ['frames' => [$firstFrame]])
+                                    </div>
+                                @elseif ($errorEvent['caller'])
+                                    <div class="node-meta"><span>{{ $errorEvent['caller'] }}</span></div>
+                                @endif
+                                @if (($errorEvent['trace']['app_frames'] ?? []) && count($errorEvent['trace']['app_frames']) > 1)
+                                    <details class="trace-details compact">
+                                        <summary>Show application trace</summary>
+                                        <div class="trace-list compact">
+                                            @include('periscope::partials.stack-trace', ['frames' => $errorEvent['trace']['app_frames']])
+                                        </div>
+                                    </details>
+                                @endif
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
+        @if ($entry->type === 'exception' && ($stackTrace['has_trace'] ?? false))
+            <section class="panel stack-card">
+                <div class="panel-title">
+                    <span>Current Exception Trace</span>
+                    @if (($stackTrace['hidden_core_count'] ?? 0) > 0)
+                        <span class="hint">{{ $stackTrace['hidden_core_count'] }} vendor/core {{ \Illuminate\Support\Str::plural('frame', $stackTrace['hidden_core_count']) }} hidden</span>
+                    @endif
+                </div>
+                <div class="trace-list">
+                    @include('periscope::partials.stack-trace', [
+                        'frames' => $stackTrace['app_frames'] ?: $stackTrace['frames'],
+                        'empty' => 'No application stack frames were captured for this exception.',
+                    ])
+                </div>
+                @if (($stackTrace['hidden_core_count'] ?? 0) > 0)
+                    <details class="trace-details">
+                        <summary>Show full trace</summary>
+                        <div class="trace-list">
+                            @include('periscope::partials.stack-trace', ['frames' => $stackTrace['frames']])
+                        </div>
+                    </details>
+                @endif
             </section>
         @endif
 
