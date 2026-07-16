@@ -66,6 +66,7 @@
         return trim((string) $first) !== ''
             && trim((string) $first) === trim((string) $second);
     };
+
 @endphp
 
 @section('page-title', $filters->type ? \TortoiseIT\LaravelPeriscope\Support\EntryType::labelFor($filters->type) : 'All entries')
@@ -84,7 +85,7 @@
         </svg>
         <span>Watch</span>
     </button>
-    <a class="button secondary" href="{{ route('periscope.index') }}">Reset</a>
+    <a class="button secondary" href="{{ route('periscope.entries.index') }}">Reset</a>
 @endsection
 
 @section('content')
@@ -220,7 +221,7 @@
                                                 @if ($entry->summary['user'])
                                                     <div>{{ $entry->summary['user'] }}</div>
                                                     @if ($entry->summary['user_id'])
-                                                        <a class="subtitle" href="{{ route('periscope.index', request()->except('before') + ['tag' => 'Auth:'.$entry->summary['user_id']]) }}">Auth:{{ $entry->summary['user_id'] }}</a>
+                                                        <a class="subtitle" href="{{ route('periscope.entries.index', request()->except('before') + ['tag' => 'Auth:'.$entry->summary['user_id']]) }}">Auth:{{ $entry->summary['user_id'] }}</a>
                                                     @endif
                                                 @else
                                                     <span class="hint">Guest</span>
@@ -257,7 +258,7 @@
 
             @if ($hasMore)
                 <div class="pager">
-                    <a class="button secondary" href="{{ route('periscope.index', $queryWithoutBefore + ['before' => $nextBefore]) }}">Next page</a>
+                    <a class="button secondary" href="{{ route('periscope.entries.index', $queryWithoutBefore + ['before' => $nextBefore]) }}">Next page</a>
                 </div>
             @endif
         </section>

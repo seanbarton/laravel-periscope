@@ -42,6 +42,116 @@ class TelescopeEntryRepository
             ->pluck('tag');
     }
 
+    public function requestOverview(EntryFilters $filters): array
+    {
+        $scanLimit = max(50, (int) config('periscope.overview_request_scan_limit', 1000));
+
+        $totalRequests = $this->connection()
+            ->table('telescope_entries')
+            ->where('type', 'request')
+            ->when($filters->from, fn ($query, $from) => $query->where('created_at', '>=', $from))
+            ->when($filters->to, fn ($query, $to) => $query->where('created_at', '<=', $to))
+            ->count();
+
+        $requests = $this->connection()
+            ->table('telescope_entries')
+            ->select('sequence', 'uuid', 'batch_id', 'family_hash', 'type', 'content', 'created_at')
+            ->where('type', 'request')
+            ->when($filters->from, fn ($query, $from) => $query->where('created_at', '>=', $from))
+            ->when($filters->to, fn ($query, $to) => $query->where('created_at', '<=', $to))
+            ->orderByDesc('sequence')
+            ->limit($scanLimit)
+            ->get()
+            ->reject(fn (object $entry) => $this->isPeriscopeRequest($entry))
+            ->map(function (object $entry): object {
+                $entry->content = $this->decodeContent($entry->content, true);
+                $entry->summary = $this->summary($entry);
+
+                return $entry;
+            })
+            ->values();
+
+        $batchErrors = $this->errorEntriesByBatch($requests->pluck('batch_id')->filter()->unique()->values());
+        $allErrorRequests = $requests
+            ->filter(fn (object $entry) => $this->isErrorEntry($entry) || isset($batchErrors[$entry->batch_id]));
+        $errorRequests = $allErrorRequests
+            ->take(8)
+            ->map(function (object $entry) use ($batchErrors): array {
+                $firstError = $batchErrors[$entry->batch_id][0] ?? null;
+
+                return [
+                    'uuid' => $entry->uuid,
+                    'batch_id' => $entry->batch_id,
+                    'created_at' => $entry->created_at,
+                    'title' => $entry->summary['title'],
+                    'status' => $entry->summary['status'],
+                    'duration' => $entry->summary['duration'],
+                    'method' => $entry->summary['method'],
+                    'error_count' => isset($batchErrors[$entry->batch_id]) ? count($batchErrors[$entry->batch_id]) : 1,
+                    'error_title' => $firstError['title'] ?? null,
+                    'error_label' => $firstError['label'] ?? null,
+                ];
+            })
+            ->values();
+        $slowRequests = $requests
+            ->filter(fn (object $entry) => is_numeric($entry->summary['duration']))
+            ->sortByDesc(fn (object $entry) => (float) $entry->summary['duration'])
+            ->take(8)
+            ->map(fn (object $entry) => [
+                'uuid' => $entry->uuid,
+                'title' => $entry->summary['title'],
+                'duration' => $entry->summary['duration'],
+                'method' => $entry->summary['method'],
+                'status' => $entry->summary['status'],
+                'created_at' => $entry->created_at,
+            ])
+            ->values();
+        $durationRequests = $requests
+            ->filter(fn (object $entry) => is_numeric($entry->summary['duration']));
+        $durations = $durationRequests
+            ->pluck('summary.duration')
+            ->map(fn ($duration) => (float) $duration);
+        $durationBuckets = $this->durationBuckets($durationRequests);
+        $users = $requests
+            ->map(fn (object $entry) => $this->userSummaryFor($entry->content))
+            ->filter()
+            ->groupBy(fn (array $user) => $user['key'])
+            ->map(function (Collection $group): array {
+                $first = $group->first();
+
+                return [
+                    'label' => $first['label'],
+                    'meta' => $first['meta'],
+                    'id' => $first['id'],
+                    'count' => $group->count(),
+                ];
+            })
+            ->sortByDesc('count')
+            ->take(10)
+            ->values();
+
+        return [
+            'total_requests' => $totalRequests,
+            'inspected_requests' => $requests->count(),
+            'is_capped' => $totalRequests > $requests->count(),
+            'window_from' => $filters->from,
+            'window_to' => $filters->to,
+            'error_request_count' => $allErrorRequests->count(),
+            'error_requests' => $errorRequests,
+            'slow_requests' => $slowRequests,
+            'duration_buckets' => $durationBuckets,
+            'users' => $users,
+            'status_groups' => [
+                'ok' => $requests->filter(fn (object $entry) => $this->statusInRange($entry->summary['status'], 200, 299))->count(),
+                'redirect' => $requests->filter(fn (object $entry) => $this->statusInRange($entry->summary['status'], 300, 399))->count(),
+                'client_error' => $requests->filter(fn (object $entry) => $this->statusInRange($entry->summary['status'], 400, 499))->count(),
+                'server_error' => $requests->filter(fn (object $entry) => $this->statusInRange($entry->summary['status'], 500, 599))->count(),
+            ],
+            'avg_duration' => $durations->isNotEmpty() ? round($durations->avg(), 2) : null,
+            'slowest_request' => $slowRequests->first(),
+        ];
+    }
+
     public function find(string $uuid): ?object
     {
         $entry = $this->connection()
@@ -269,6 +379,41 @@ class TelescopeEntryRepository
         return $errorBatchCache[$batchId];
     }
 
+    private function errorEntriesByBatch(Collection $batchIds): array
+    {
+        if ($batchIds->isEmpty()) {
+            return [];
+        }
+
+        return $this->connection()
+            ->table('telescope_entries')
+            ->select('uuid', 'batch_id', 'type')
+            ->selectRaw('LEFT(content, 100000) as content')
+            ->whereIn('batch_id', $batchIds->all())
+            ->whereIn('type', ['exception', 'log', 'request', 'client_request'])
+            ->orderBy('sequence')
+            ->get()
+            ->map(function (object $entry): object {
+                $entry->content = $this->decodeContent($entry->content, true);
+                $entry->summary = $this->summary($entry);
+
+                return $entry;
+            })
+            ->filter(fn (object $entry) => $this->isErrorEntry($entry))
+            ->groupBy('batch_id')
+            ->map(fn (Collection $entries) => $entries
+                ->map(fn (object $entry) => [
+                    'uuid' => $entry->uuid,
+                    'type' => $entry->type,
+                    'title' => $entry->summary['title'],
+                    'label' => $entry->summary['label'],
+                    'status' => $entry->summary['status'],
+                ])
+                ->values()
+                ->all())
+            ->all();
+    }
+
     private function isErrorEntry(object $entry): bool
     {
         if ($entry->type === 'exception') {
@@ -282,6 +427,11 @@ class TelescopeEntryRepository
         }
 
         return is_numeric($status) && (int) $status >= 400;
+    }
+
+    private function statusInRange(mixed $status, int $from, int $to): bool
+    {
+        return is_numeric($status) && (int) $status >= $from && (int) $status <= $to;
     }
 
     private function connection(): ConnectionInterface
@@ -496,15 +646,7 @@ class TelescopeEntryRepository
 
     private function userFor(array $content): ?string
     {
-        $user = $content['user'] ?? null;
-
-        if (! is_array($user)) {
-            return is_scalar($user) ? (string) $user : null;
-        }
-
-        return $user['name']
-            ?? $user['email']
-            ?? (isset($user['id']) ? '#'.$user['id'] : null);
+        return $this->userSummaryFor($content)['label'] ?? null;
     }
 
     private function userIdFor(array $content): mixed
@@ -516,6 +658,81 @@ class TelescopeEntryRepository
         }
 
         return is_scalar($user) ? $user : null;
+    }
+
+    private function userSummaryFor(array $content): ?array
+    {
+        $user = $content['user'] ?? null;
+
+        if (! is_array($user)) {
+            return is_scalar($user) && (string) $user !== ''
+                ? ['key' => 'id:'.$user, 'label' => '#'.$user, 'meta' => null, 'id' => $user]
+                : null;
+        }
+
+        $firstName = $this->stringValue($user['first_name'] ?? null);
+        $lastName = $this->stringValue($user['last_name'] ?? null);
+        $fullName = trim(($firstName ?? '').' '.($lastName ?? ''));
+        $name = $this->stringValue($user['name'] ?? null) ?: ($fullName !== '' ? $fullName : null);
+        $email = $this->stringValue($user['email'] ?? null);
+        $id = $user['id'] ?? null;
+        $label = $name ?? $email ?? ($id !== null && $id !== '' ? '#'.$id : null);
+
+        if (! $label) {
+            return null;
+        }
+
+        return [
+            'key' => $id !== null && $id !== '' ? 'id:'.$id : 'label:'.$label,
+            'label' => $label,
+            'meta' => $email && $email !== $label ? $email : ($id !== null && $id !== '' ? '#'.$id : null),
+            'id' => $id,
+        ];
+    }
+
+    private function durationBuckets(Collection $requests): Collection
+    {
+        $buckets = [
+            ['label' => '< 100ms', 'from' => 0, 'to' => 100],
+            ['label' => '100ms - 500ms', 'from' => 100, 'to' => 500],
+            ['label' => '500ms - 1s', 'from' => 500, 'to' => 1000],
+            ['label' => '1s - 3s', 'from' => 1000, 'to' => 3000],
+            ['label' => '> 3s', 'from' => 3000, 'to' => null],
+        ];
+
+        return collect($buckets)
+            ->map(function (array $bucket) use ($requests): array {
+                $matching = $requests->filter(function (object $entry) use ($bucket): bool {
+                    $duration = (float) $entry->summary['duration'];
+
+                    if ($bucket['to'] === null) {
+                        return $duration >= $bucket['from'];
+                    }
+
+                    return $duration >= $bucket['from'] && $duration < $bucket['to'];
+                });
+                $durations = $matching->pluck('summary.duration')->map(fn ($duration) => (float) $duration);
+
+                return [
+                    'label' => $bucket['label'],
+                    'count' => $matching->count(),
+                    'avg' => $durations->isNotEmpty() ? round($durations->avg(), 2) : null,
+                    'max' => $durations->isNotEmpty() ? round($durations->max(), 2) : null,
+                    'requests' => $matching
+                        ->sortByDesc(fn (object $entry) => (float) $entry->summary['duration'])
+                        ->take(6)
+                        ->map(fn (object $entry) => [
+                            'uuid' => $entry->uuid,
+                            'title' => $entry->summary['title'],
+                            'duration' => $entry->summary['duration'],
+                            'method' => $entry->summary['method'],
+                            'status' => $entry->summary['status'],
+                        ])
+                        ->values(),
+                ];
+            })
+            ->filter(fn (array $bucket) => $bucket['count'] > 0)
+            ->values();
     }
 
     private function addGateChannels(Collection $entries): void

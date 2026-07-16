@@ -25,17 +25,17 @@
     {{ $classification['method'] ?? 'Batch' }} {{ $classification['path'] ?? $entry->summary['title'] }}
 @endsection
 
-@section('topbar-actions')
-    <button class="button secondary" type="button" data-copy-text="{{ base64_encode($debugBundle) }}" data-copy-encoded="base64">Copy Debug Bundle</button>
-    <a class="button secondary" href="{{ route('periscope.entries.show', ['uuid' => $entry->uuid] + request()->query()) }}">Entry</a>
-    <a class="button secondary" href="{{ route('periscope.index', request()->except('uuid')) }}">Back</a>
-@endsection
-
 @section('content')
     <div class="detail-stack">
         <div class="lifecycle-hero">
             <section class="panel summary-card lifecycle-overview">
-                <h3>Request Shape</h3>
+                <div class="summary-card-head">
+                    <h3>Request Shape</h3>
+                    <div class="buttons">
+                        <button class="button secondary" type="button" data-copy-text="{{ base64_encode($debugBundle) }}" data-copy-encoded="base64">Copy Debug Bundle</button>
+                        <a class="button secondary" href="{{ route('periscope.entries.show', ['uuid' => $entry->uuid] + request()->query()) }}">Entry</a>
+                    </div>
+                </div>
                 <div class="summary-grid">
                     <div class="summary-item">
                         <div class="summary-label">Channel</div>

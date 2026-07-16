@@ -125,7 +125,7 @@
 @section('content')
     <div class="detail-stack">
         <div class="breadcrumb">
-            <a href="{{ route('periscope.index', request()->except('uuid')) }}">Entries</a>
+            <a href="{{ route('periscope.entries.index', request()->except('uuid')) }}">Entries</a>
             @if ($rootRequest && $rootRequest->uuid !== $entry->uuid)
                 <span>/</span>
                 <a href="{{ route('periscope.entries.show', ['uuid' => $rootRequest->uuid] + request()->query()) }}">Request</a>
@@ -247,7 +247,7 @@
                             @endif
                             @if ($userId)
                                 <div class="muted">#{{ $userId }}</div>
-                                <a class="badge tag-link" href="{{ route('periscope.index', request()->except('before') + ['tag' => 'Auth:'.$userId]) }}">Filter Auth:{{ $userId }}</a>
+                                <a class="badge tag-link" href="{{ route('periscope.entries.index', request()->except('before') + ['tag' => 'Auth:'.$userId]) }}">Filter Auth:{{ $userId }}</a>
                             @endif
                         </div>
                     @else
@@ -256,7 +256,7 @@
 
                     <div class="tags">
                         @forelse ($entry->tags as $tag)
-                            <a class="badge" href="{{ route('periscope.index', request()->except('before') + ['tag' => $tag]) }}">{{ $tag }}</a>
+                            <a class="badge" href="{{ route('periscope.entries.index', request()->except('before') + ['tag' => $tag]) }}">{{ $tag }}</a>
                         @empty
                             <span class="hint">No tags</span>
                         @endforelse

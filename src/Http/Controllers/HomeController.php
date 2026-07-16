@@ -12,19 +12,14 @@ class HomeController extends Controller
     public function __invoke(Request $request, TelescopeEntryRepository $entries)
     {
         $filters = EntryFilters::fromRequest($request);
-        $results = $entries->search($filters);
-        $hasMore = $results->count() > $filters->perPage;
-        $visibleResults = $results->take($filters->perPage);
-        $nextBefore = $hasMore ? $visibleResults->last()?->sequence : null;
 
-        return view('periscope::index', [
+        return view('periscope::overview', [
             'filters' => $filters,
-            'entries' => $visibleResults,
-            'hasMore' => $hasMore,
-            'nextBefore' => $nextBefore,
+            'requestOverview' => $entries->requestOverview($filters),
             'typeCounts' => $entries->typeCounts($filters),
             'types' => $entries->types(),
             'tags' => $entries->tags((string) $request->query('tag_search', '')),
+            'topbarAction' => route('periscope.index'),
         ]);
     }
 }
