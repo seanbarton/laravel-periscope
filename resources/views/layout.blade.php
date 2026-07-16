@@ -1512,7 +1512,7 @@
                 <div class="theme-switcher-controls">
                     <select id="periscope-theme" name="theme" onchange="this.form.submit()">
                         @foreach ($allowedThemes as $theme)
-                            <option value="{{ $theme }}" @selected($periscopeTheme === $theme)>{{ $theme === 'default' ? 'Open Water' : ucfirst($theme) }}</option>
+                            <option value="{{ $theme }}" @selected($periscopeTheme === $theme)>{{ $theme === 'default' ? 'Open Water' : ($theme === 'submarine' ? 'Into the Depths' : ucfirst($theme)) }}</option>
                         @endforeach
                     </select>
                 </div>
