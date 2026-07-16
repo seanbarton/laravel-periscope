@@ -1,5 +1,10 @@
 @php
     $appName = config('periscope.name', 'Periscope');
+    $allowedThemes = ['default', 'submarine'];
+    $configuredTheme = strtolower((string) config('periscope.theme', 'default'));
+    $sessionTheme = strtolower((string) session('periscope.theme', ''));
+    $resolvedTheme = in_array($sessionTheme, $allowedThemes, true) ? $sessionTheme : $configuredTheme;
+    $periscopeTheme = in_array($resolvedTheme, $allowedThemes, true) ? $resolvedTheme : 'default';
     $filters = $filters ?? \TortoiseIT\LaravelPeriscope\Support\EntryFilters::fromRequest(request());
     $tags = $tags ?? collect();
     $primaryTypes = ['request', 'log', 'mail', 'command', 'job'];
@@ -72,6 +77,100 @@
             --red-soft: #fde5e5;
             --code: #10223f;
             --code-text: #dff7ff;
+            --sidebar-bg: #e1f0f6;
+            --sidebar-text: #223954;
+            --nav-section-title: #6c8497;
+            --nav-item-text: #243c58;
+        }
+
+        body.theme-submarine {
+            color-scheme: dark;
+            --bg: #02070d;
+            --panel: #061522;
+            --panel-head: #0a1d2e;
+            --line: #13344a;
+            --text: #b7ffd5;
+            --muted: #5ed79b;
+            --soft: #0d2533;
+            --brand: #3df58f;
+            --brand-dark: #abffd4;
+            --brand-soft: #0d2f24;
+            --accent: #4eb3ff;
+            --accent-soft: #11283b;
+            --green: #61ffa8;
+            --green-soft: #0f3f2b;
+            --yellow: #f1d57a;
+            --yellow-soft: #3b3414;
+            --red: #ff6d6d;
+            --red-dark: #e04c4c;
+            --red-soft: #411919;
+            --code: #010407;
+            --code-text: #8dffbf;
+            --sidebar-bg: #040d16;
+            --sidebar-text: #96f7c2;
+            --nav-section-title: #4bc78e;
+            --nav-item-text: #a8ffd2;
+        }
+        body.theme-submarine a { color: #55ffab; }
+        body.theme-submarine a:hover { color: #9cffcf; }
+        body.theme-submarine .nav-icon { background: #0f2a3c; color: #87ffd0; }
+        body.theme-submarine .nav-item:hover { background: #0f2534; color: #d3ffe8; }
+        body.theme-submarine .nav-item.active .nav-icon { color: #03130b; }
+        body.theme-submarine .nav-count { color: #7de8b8; }
+        body.theme-submarine .topbar {
+            background: #04111c;
+            border-bottom-color: #17455f;
+            color: #bfffdc;
+            box-shadow: 0 1px 14px rgb(0 0 0 / 48%);
+        }
+        body.theme-submarine .topbar-title h2 { color: #d5ffe9; }
+        body.theme-submarine .topbar-title p { color: #92e6bc; }
+        body.theme-submarine .date-controls label { color: #b4ffd7; }
+        body.theme-submarine .date-controls input {
+            border-color: #1f5a78;
+            background: #061827;
+            color: #cbffe3;
+        }
+        body.theme-submarine .date-controls input::-webkit-calendar-picker-indicator { opacity: 1; }
+        body.theme-submarine input,
+        body.theme-submarine select,
+        body.theme-submarine textarea {
+            background: #081b2a;
+            border-color: #1a4963;
+            color: #c6ffe1;
+        }
+        body.theme-submarine .hint,
+        body.theme-submarine .muted { color: #7fceaa; }
+        body.theme-submarine .badge {
+            background: #0d2a3a;
+            border-color: #216286;
+            color: #c8ffe4;
+        }
+        body.theme-submarine .button.secondary,
+        body.theme-submarine .btn.secondary {
+            background: #0c2232;
+            border-color: #2b7099;
+            color: #beffe0;
+        }
+        body.theme-submarine table td,
+        body.theme-submarine table th { border-color: #14384f; }
+        body.theme-submarine th {
+            color: #c8ffe4;
+            background: #0a1d2e;
+        }
+        body.theme-submarine tr:hover td { background: #0b2232; }
+        body.theme-submarine tr.clickable-row:hover td { background: #0d2738; }
+        body.theme-submarine .table-shell,
+        body.theme-submarine .card,
+        body.theme-submarine .panel,
+        body.theme-submarine .error-flow-card {
+            background: #071726;
+            border-color: #1b4b66;
+            color: #c9ffe3;
+        }
+        body.theme-submarine .tabbar {
+            background: #0a1d2e;
+            border-bottom-color: #14384f;
         }
         * { box-sizing: border-box; }
         body {
@@ -96,8 +195,8 @@
             height: 100vh;
             overflow-y: auto;
             border-right: 1px solid var(--line);
-            background: #e1f0f6;
-            color: #223954;
+            background: var(--sidebar-bg);
+            color: var(--sidebar-text);
             padding: 18px 16px;
         }
         .brand {
@@ -127,7 +226,7 @@
         }
         .nav-section-title {
             margin: 18px 10px 8px;
-            color: #6c8497;
+            color: var(--nav-section-title);
             font-size: 11px;
             font-weight: 800;
             text-transform: uppercase;
@@ -143,7 +242,7 @@
             min-height: 42px;
             border-radius: 8px;
             padding: 8px 10px;
-            color: #243c58;
+            color: var(--nav-item-text);
             font-weight: 600;
         }
         .nav-icon {
@@ -175,6 +274,29 @@
             font-weight: 700;
         }
         .sidebar-actions { display: grid; gap: 8px; margin-top: 18px; padding: 0 4px; }
+        .theme-switcher {
+            display: grid;
+            gap: 6px;
+            margin-top: 14px;
+            padding: 0 4px;
+        }
+        .theme-switcher label {
+            color: var(--nav-section-title);
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+        .theme-switcher-controls {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+        .theme-switcher select {
+            min-height: 34px;
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--text);
+        }
         .main { min-width: 0; }
         .topbar {
             position: sticky;
@@ -1334,7 +1456,7 @@
         }
     </style>
 </head>
-<body>
+<body class="theme-{{ $periscopeTheme }}">
     <div class="app-shell">
         <aside class="sidebar">
             <div class="brand">
@@ -1383,6 +1505,18 @@
                 <a class="button secondary" href="{{ url(config('telescope.path', 'telescope')) }}">Open Telescope</a>
                 <a class="button secondary" href="{{ route('periscope.index') }}">Reset</a>
             </div>
+
+            <form class="theme-switcher" method="post" action="{{ route('periscope.theme') }}">
+                @csrf
+                <label for="periscope-theme">Theme</label>
+                <div class="theme-switcher-controls">
+                    <select id="periscope-theme" name="theme" onchange="this.form.submit()">
+                        @foreach ($allowedThemes as $theme)
+                            <option value="{{ $theme }}" @selected($periscopeTheme === $theme)>{{ $theme === 'default' ? 'Open Water' : ucfirst($theme) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </form>
         </aside>
 
         <main class="main">

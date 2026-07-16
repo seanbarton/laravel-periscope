@@ -5,6 +5,8 @@ return [
 
     'name' => env('PERISCOPE_NAME', 'Periscope'),
 
+    'theme' => env('PERISCOPE_THEME', 'default'),
+
     'path' => env('PERISCOPE_PATH', 'periscope'),
 
     'domain' => env('PERISCOPE_DOMAIN'),
