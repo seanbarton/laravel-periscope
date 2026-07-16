@@ -77,6 +77,7 @@
             --accent-soft: #ddf4fb;
             --green: #11785e;
             --green-soft: #dff4ec;
+            --blue: #2f79b8;
             --yellow: #7a5a12;
             --yellow-soft: #f6efd8;
             --red: #ba2f2f;
@@ -106,6 +107,7 @@
             --accent-soft: #11283b;
             --green: #61ffa8;
             --green-soft: #0f3f2b;
+            --blue: #6dbdff;
             --yellow: #f1d57a;
             --yellow-soft: #3b3414;
             --red: #ff6d6d;
@@ -134,6 +136,7 @@
             --accent-soft: #f8e9dd;
             --green: #1d7458;
             --green-soft: #e1f3eb;
+            --blue: #2f7eb6;
             --yellow: #7b5d10;
             --yellow-soft: #f7efd5;
             --red: #b3333e;
@@ -162,6 +165,7 @@
             --accent-soft: #f4e4dc;
             --green: #4f7427;
             --green-soft: #e8f0d8;
+            --blue: #4b79b8;
             --yellow: #8b6114;
             --yellow-soft: #f7ecd0;
             --red: #b44038;
@@ -190,6 +194,7 @@
             --accent-soft: #202946;
             --green: #7dd7a6;
             --green-soft: #193224;
+            --blue: #8fa8ff;
             --yellow: #e7c66c;
             --yellow-soft: #382f18;
             --red: #ff7777;
@@ -216,49 +221,61 @@
         }
         body.theme-submarine .topbar-title h2 { color: #d5ffe9; }
         body.theme-submarine .topbar-title p { color: #92e6bc; }
-        body.theme-submarine .date-controls label { color: #b4ffd7; }
-        body.theme-submarine .date-controls input {
-            border-color: #1f5a78;
-            background: #061827;
-            color: #cbffe3;
-        }
-        body.theme-submarine .date-controls input::-webkit-calendar-picker-indicator { opacity: 1; }
-        body.theme-submarine input,
-        body.theme-submarine select,
-        body.theme-submarine textarea {
-            background: #081b2a;
-            border-color: #1a4963;
-            color: #c6ffe1;
-        }
-        body.theme-submarine .hint,
-        body.theme-submarine .muted { color: #7fceaa; }
-        body.theme-submarine .badge {
-            background: #0d2a3a;
-            border-color: #216286;
-            color: #c8ffe4;
-        }
-        body.theme-submarine .button.secondary,
-        body.theme-submarine .btn.secondary {
-            background: #0c2232;
-            border-color: #2b7099;
-            color: #beffe0;
-        }
-        body.theme-submarine table td,
-        body.theme-submarine table th { border-color: #14384f; }
-        body.theme-submarine th {
-            color: #c8ffe4;
+        body.theme-submarine .card-filter-menu .local-filter-body,
+        body.theme-submarine .filter-tray,
+        body.theme-submarine .health-grid > div,
+        body.theme-submarine .insight-card,
+        body.theme-submarine .timeline-marker span,
+        body.theme-submarine .timeline-card,
+        body.theme-submarine .flow-node,
+        body.theme-submarine .error-trail-item,
+        body.theme-submarine .trace-details {
             background: #0a1d2e;
-        }
-        body.theme-submarine tr:hover td { background: #0b2232; }
-        body.theme-submarine tr.clickable-row:hover td { background: #0d2738; }
-        body.theme-submarine .table-shell,
-        body.theme-submarine .card,
-        body.theme-submarine .panel,
-        body.theme-submarine .error-flow-card {
-            background: #071726;
             border-color: #1b4b66;
             color: #c9ffe3;
         }
+        body.theme-submarine .card-filter-menu summary,
+        body.theme-submarine .filter-menu summary,
+        body.theme-submarine .check-row,
+        body.theme-submarine .filter-toggle {
+            background: #0a1d2e;
+            border-color: #1b4b66;
+            color: #c9ffe3;
+        }
+        body.theme-submarine .card-filter-menu[open] summary,
+        body.theme-submarine .filter-menu[open] summary {
+            border-color: #2b7099;
+            background: #0f2a3c;
+            color: #c9ffe3;
+        }
+        body.theme-submarine .check-count {
+            background: #0f2a3c;
+            color: #bfffdc;
+        }
+        body.theme-submarine .check-row input {
+            accent-color: #55ffab;
+        }
+        body.theme-submarine .filter-tray::before {
+            border-left-color: #1b4b66;
+            border-top-color: #1b4b66;
+            background: #0a1d2e;
+        }
+        body.theme-submarine .flow-phase {
+            background: linear-gradient(180deg, #081a29 0, #071726 100%);
+        }
+        body.theme-submarine .phase-title span:last-child {
+            background: #0d2a3a;
+            color: #9fffd2;
+        }
+        body.theme-submarine .timeline-item::before { background: #1a4963; }
+        body.theme-submarine .timeline-head a,
+        body.theme-submarine .error-trail-head a,
+        body.theme-submarine .health-grid strong,
+        body.theme-submarine .insight-mini-list span,
+        body.theme-submarine .flow-node.query-node .node-title {
+            color: #bfffdc;
+        }
+        body.theme-submarine .insight-mini-list span { background: #0f2a3c; }
         body.theme-submarine .tabbar {
             background: #0a1d2e;
             border-bottom-color: #14384f;
@@ -324,6 +341,61 @@
             background: var(--panel-head);
             border-bottom-color: var(--line);
         }
+        body:is(.theme-harbor, .theme-meadow) .card-filter-menu .local-filter-body,
+        body:is(.theme-harbor, .theme-meadow) .filter-tray,
+        body:is(.theme-harbor, .theme-meadow) .health-grid > div,
+        body:is(.theme-harbor, .theme-meadow) .insight-card,
+        body:is(.theme-harbor, .theme-meadow) .timeline-marker span,
+        body:is(.theme-harbor, .theme-meadow) .timeline-card,
+        body:is(.theme-harbor, .theme-meadow) .flow-node,
+        body:is(.theme-harbor, .theme-meadow) .error-trail-item,
+        body:is(.theme-harbor, .theme-meadow) .trace-details {
+            background: var(--panel-head);
+            border-color: var(--line);
+            color: var(--text);
+        }
+        body:is(.theme-harbor, .theme-meadow) .card-filter-menu summary,
+        body:is(.theme-harbor, .theme-meadow) .filter-menu summary,
+        body:is(.theme-harbor, .theme-meadow) .check-row,
+        body:is(.theme-harbor, .theme-meadow) .filter-toggle {
+            background: var(--panel-head);
+            border-color: var(--line);
+            color: var(--text);
+        }
+        body:is(.theme-harbor, .theme-meadow) .card-filter-menu[open] summary,
+        body:is(.theme-harbor, .theme-meadow) .filter-menu[open] summary {
+            border-color: var(--accent);
+            background: var(--soft);
+            color: var(--text);
+        }
+        body:is(.theme-harbor, .theme-meadow) .check-count {
+            background: var(--soft);
+            color: var(--brand-dark);
+        }
+        body:is(.theme-harbor, .theme-meadow) .check-row input {
+            accent-color: var(--green);
+        }
+        body:is(.theme-harbor, .theme-meadow) .filter-tray::before {
+            border-left-color: var(--line);
+            border-top-color: var(--line);
+            background: var(--panel-head);
+        }
+        body:is(.theme-harbor, .theme-meadow) .flow-phase {
+            background: linear-gradient(180deg, var(--panel-head) 0, var(--panel) 100%);
+        }
+        body:is(.theme-harbor, .theme-meadow) .phase-title span:last-child {
+            background: var(--soft);
+            color: var(--brand-dark);
+        }
+        body:is(.theme-harbor, .theme-meadow) .timeline-item::before { background: var(--line); }
+        body:is(.theme-harbor, .theme-meadow) .timeline-head a,
+        body:is(.theme-harbor, .theme-meadow) .error-trail-head a,
+        body:is(.theme-harbor, .theme-meadow) .health-grid strong,
+        body:is(.theme-harbor, .theme-meadow) .insight-mini-list span,
+        body:is(.theme-harbor, .theme-meadow) .flow-node.query-node .node-title {
+            color: var(--brand-dark);
+        }
+        body:is(.theme-harbor, .theme-meadow) .insight-mini-list span { background: var(--soft); }
         body.theme-harbor .nav-icon { background: #cce4dc; color: #347266; }
         body.theme-harbor .nav-item:hover { background: #d8ece5; color: var(--brand-dark); }
         body.theme-harbor .sidebar .button.secondary { background: #d2e8df; color: #21463f; }
@@ -516,20 +588,18 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 38px;
-            height: 34px;
-            border: 1px solid rgb(255 255 255 / 16%);
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--line);
             border-radius: 8px;
-            background: rgb(255 255 255 / 10%);
-            color: #fff;
+            background: #f8fcfe;
+            color: #294863;
             cursor: pointer;
-            font-size: 18px;
-            font-weight: 700;
         }
         .filter-menu summary::-webkit-details-marker { display: none; }
         .filter-menu summary svg {
-            width: 18px;
-            height: 18px;
+            width: 17px;
+            height: 17px;
             stroke: currentColor;
             stroke-width: 2;
             fill: none;
@@ -1296,6 +1366,7 @@
             box-shadow: 0 0 0 3px var(--brand-soft);
         }
         .timeline-item.severity-ok .timeline-card { border-left-color: var(--green); }
+        .timeline-item.severity-info .timeline-card { border-left-color: var(--blue); }
         .timeline-item.severity-warn .timeline-card { border-left-color: var(--yellow); }
         .timeline-item.severity-error .timeline-card { border-left-color: var(--red); }
         .timeline-head {
@@ -1392,6 +1463,7 @@
         }
         .flow-node.request-node { border-left-color: var(--accent); }
         .flow-node.severity-ok { border-left-color: var(--green); }
+        .flow-node.severity-info { border-left-color: var(--blue); }
         .flow-node.severity-warn { border-left-color: var(--yellow); }
         .flow-node.severity-error { border-left-color: var(--red); }
         .flow-node.query-node {
