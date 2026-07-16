@@ -129,6 +129,7 @@ class TelescopeEntryRepository
             ->sortByDesc('count')
             ->take(10)
             ->values();
+        $jobSummary = $this->jobSummary($filters);
 
         return [
             'total_requests' => $totalRequests,
@@ -149,6 +150,7 @@ class TelescopeEntryRepository
             ],
             'avg_duration' => $durations->isNotEmpty() ? round($durations->avg(), 2) : null,
             'slowest_request' => $slowRequests->first(),
+            'jobs' => $jobSummary,
         ];
     }
 
@@ -229,7 +231,15 @@ class TelescopeEntryRepository
                 ->when($before, fn ($query, int $before) => $query->where('e.sequence', '<', $before))
                 ->when($filters->query, fn ($query, string $term) => $query->where('e.content', 'like', '%'.$this->escapeLike($term).'%'))
                 ->when($filters->method, fn ($query, string $method) => $query->where('e.content', 'like', '%"method":"'.$this->escapeLike(strtoupper($method)).'"%'))
-                ->when($filters->status, fn ($query, string $status) => $query->where('e.content', 'like', '%"response_status":'.$this->escapeLike($status).'%'))
+                ->when($filters->status, function ($query, string $status): void {
+                    $escaped = $this->escapeLike($status);
+
+                    $query->where(function ($statusQuery) use ($escaped): void {
+                        $statusQuery
+                            ->where('e.content', 'like', '%"response_status":'.$escaped.'%')
+                            ->orWhere('e.content', 'like', '%"status":"'.$escaped.'"%');
+                    });
+                })
                 ->when($filters->path, fn ($query, string $path) => $query->where('e.content', 'like', '%'.$this->escapeLike($path).'%'))
                 ->orderByDesc('e.sequence')
                 ->limit($batchSize)
@@ -290,6 +300,25 @@ class TelescopeEntryRepository
         }
 
         return $results;
+    }
+
+    private function jobSummary(EntryFilters $filters): array
+    {
+        $baseQuery = fn () => $this->connection()
+            ->table('telescope_entries')
+            ->where('type', 'job')
+            ->when($filters->from, fn ($query, $from) => $query->where('created_at', '>=', $from))
+            ->when($filters->to, fn ($query, $to) => $query->where('created_at', '<=', $to));
+
+        $countForStatus = fn (string $status): int => (int) $baseQuery()
+            ->where('content', 'like', '%"status":"'.$this->escapeLike($status).'"%')
+            ->count();
+
+        return [
+            'total' => (int) $baseQuery()->count(),
+            'succeeded' => $countForStatus('processed'),
+            'failed' => $countForStatus('failed'),
+        ];
     }
 
     private function errorScanShouldStop(EntryFilters $filters, float $startedAt, int $scanned): bool

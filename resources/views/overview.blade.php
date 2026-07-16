@@ -6,6 +6,7 @@
     $durationBuckets = collect($overview['duration_buckets'] ?? []);
     $users = collect($overview['users'] ?? []);
     $statusGroups = $overview['status_groups'] ?? [];
+    $jobs = $overview['jobs'] ?? ['total' => 0, 'succeeded' => 0, 'failed' => 0];
     $slowestRequest = $overview['slowest_request'] ?? null;
     $overviewQuery = request()->except('before');
     $windowFrom = $overview['window_from'] ?? null;
@@ -130,6 +131,24 @@
                         <span class="badge error">{{ $formatRequestCount($statusGroups['server_error'] ?? 0) }}</span>
                     </div>
                     <a class="button secondary" href="{{ route('periscope.entries.index', $overviewQuery) }}">Open full entry list</a>
+                </div>
+            </section>
+
+            <section class="panel snapshot-card">
+                <div class="panel-title">
+                    <span>Jobs</span>
+                    <span class="hint">{{ number_format((int) ($jobs['total'] ?? 0)) }} in timeframe</span>
+                </div>
+                <div class="snapshot-list compact">
+                    <a class="snapshot-row linked" href="{{ route('periscope.entries.index', array_merge($overviewQuery, ['type' => 'job', 'status' => 'processed'])) }}">
+                        <strong>Succeeded</strong>
+                        <span class="badge ok">{{ number_format((int) ($jobs['succeeded'] ?? 0)) }} {{ \Illuminate\Support\Str::plural('job', (int) ($jobs['succeeded'] ?? 0)) }}</span>
+                    </a>
+                    <a class="snapshot-row linked" href="{{ route('periscope.entries.index', array_merge($overviewQuery, ['type' => 'job', 'status' => 'failed'])) }}">
+                        <strong>Failed</strong>
+                        <span class="badge error">{{ number_format((int) ($jobs['failed'] ?? 0)) }} {{ \Illuminate\Support\Str::plural('job', (int) ($jobs['failed'] ?? 0)) }}</span>
+                    </a>
+                    <a class="button secondary" href="{{ route('periscope.entries.index', array_merge($overviewQuery, ['type' => 'job'])) }}">Open all jobs</a>
                 </div>
             </section>
 
