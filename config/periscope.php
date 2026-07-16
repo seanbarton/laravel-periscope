@@ -21,6 +21,8 @@ return [
 
     'default_hours' => 24,
 
+    'overview_request_scan_limit' => env('PERISCOPE_OVERVIEW_REQUEST_SCAN_LIMIT', 1000),
+
     'error_scan_timeout_ms' => env('PERISCOPE_ERROR_SCAN_TIMEOUT_MS', 1500),
 
     'error_scan_max_entries' => env('PERISCOPE_ERROR_SCAN_MAX_ENTRIES', 10000),
