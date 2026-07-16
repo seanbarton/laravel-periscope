@@ -10,7 +10,7 @@ class ThemeController extends Controller
 {
     public function __invoke(Request $request): RedirectResponse
     {
-        $allowedThemes = ['default', 'submarine'];
+        $allowedThemes = ['default', 'harbor', 'meadow', 'submarine', 'abyss'];
 
         $validated = $request->validate([
             'theme' => ['required', 'string', 'in:'.implode(',', $allowedThemes)],

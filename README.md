@@ -102,7 +102,7 @@ return [
 
 `PERISCOPE_PATH=internal/periscope` moves the dashboard to a different URL.
 
-`PERISCOPE_THEME=default` uses the built-in `Open Water` theme. Set `PERISCOPE_THEME=submarine` for the `Into the Depths` theme (an 80s navy movie-style dark theme with black/navy surfaces and green radar-like accents).
+`PERISCOPE_THEME=default` uses the built-in `Open Water` light theme. Other available themes are `harbor`, `meadow`, `submarine` (`Into the Depths`), and `abyss`.
 
 Users can override this env default for their current browser session via the Periscope sidebar theme switcher.
 

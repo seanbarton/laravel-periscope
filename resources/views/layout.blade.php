@@ -1,6 +1,13 @@
 @php
     $appName = config('periscope.name', 'Periscope');
-    $allowedThemes = ['default', 'submarine'];
+    $themeLabels = [
+        'default' => 'Open Water',
+        'harbor' => 'Harbor',
+        'meadow' => 'Meadow',
+        'submarine' => 'Into the Depths',
+        'abyss' => 'Abyss',
+    ];
+    $allowedThemes = array_keys($themeLabels);
     $configuredTheme = strtolower((string) config('periscope.theme', 'default'));
     $sessionTheme = strtolower((string) session('periscope.theme', ''));
     $resolvedTheme = in_array($sessionTheme, $allowedThemes, true) ? $sessionTheme : $configuredTheme;
@@ -111,6 +118,90 @@
             --nav-section-title: #4bc78e;
             --nav-item-text: #a8ffd2;
         }
+        body.theme-harbor {
+            color-scheme: light;
+            --bg: #f2f7f5;
+            --panel: #ffffff;
+            --panel-head: #f3faf6;
+            --line: #cadfd5;
+            --text: #172b25;
+            --muted: #61776e;
+            --soft: #e2f0e9;
+            --brand: #207f71;
+            --brand-dark: #173f48;
+            --brand-soft: #dff1ec;
+            --accent: #c97842;
+            --accent-soft: #f8e9dd;
+            --green: #1d7458;
+            --green-soft: #e1f3eb;
+            --yellow: #7b5d10;
+            --yellow-soft: #f7efd5;
+            --red: #b3333e;
+            --red-dark: #8d2330;
+            --red-soft: #fbe4e7;
+            --code: #132b31;
+            --code-text: #e7fff6;
+            --sidebar-bg: #e4f1eb;
+            --sidebar-text: #21463f;
+            --nav-section-title: #6b8278;
+            --nav-item-text: #284a43;
+        }
+        body.theme-meadow {
+            color-scheme: light;
+            --bg: #f7f7ef;
+            --panel: #ffffff;
+            --panel-head: #fbfbf1;
+            --line: #dddcbf;
+            --text: #2a2a1d;
+            --muted: #74745d;
+            --soft: #ecebd2;
+            --brand: #6f7f24;
+            --brand-dark: #2f4522;
+            --brand-soft: #e7ebc7;
+            --accent: #b2634a;
+            --accent-soft: #f4e4dc;
+            --green: #4f7427;
+            --green-soft: #e8f0d8;
+            --yellow: #8b6114;
+            --yellow-soft: #f7ecd0;
+            --red: #b44038;
+            --red-dark: #8d2c26;
+            --red-soft: #f8e1df;
+            --code: #252d1d;
+            --code-text: #f1ffd9;
+            --sidebar-bg: #ededcf;
+            --sidebar-text: #3c4d2e;
+            --nav-section-title: #7e8058;
+            --nav-item-text: #3f502f;
+        }
+        body.theme-abyss {
+            color-scheme: dark;
+            --bg: #090a10;
+            --panel: #12131c;
+            --panel-head: #181a25;
+            --line: #2b2d3d;
+            --text: #edf0ff;
+            --muted: #a4a9bd;
+            --soft: #202231;
+            --brand: #ff8f70;
+            --brand-dark: #f5d4c9;
+            --brand-soft: #3a231f;
+            --accent: #8fa8ff;
+            --accent-soft: #202946;
+            --green: #7dd7a6;
+            --green-soft: #193224;
+            --yellow: #e7c66c;
+            --yellow-soft: #382f18;
+            --red: #ff7777;
+            --red-dark: #e15858;
+            --red-soft: #3b1d22;
+            --code: #05060b;
+            --code-text: #e9ecff;
+            --sidebar-bg: #0d0f18;
+            --sidebar-text: #dce1ff;
+            --nav-section-title: #9ca3bf;
+            --nav-item-text: #d3d9f7;
+        }
         body.theme-submarine a { color: #55ffab; }
         body.theme-submarine a:hover { color: #9cffcf; }
         body.theme-submarine .nav-icon { background: #0f2a3c; color: #87ffd0; }
@@ -172,6 +263,75 @@
             background: #0a1d2e;
             border-bottom-color: #14384f;
         }
+        body.theme-abyss a { color: #ffab93; }
+        body.theme-abyss a:hover { color: #ffc1b0; }
+        body.theme-abyss .nav-icon { background: #202337; color: #c4ccff; }
+        body.theme-abyss .nav-item:hover { background: #1a1d2c; color: #fff1eb; }
+        body.theme-abyss .nav-item.active .nav-icon { color: #1a0b08; }
+        body.theme-abyss .nav-count { color: #adb5d9; }
+        body.theme-abyss .topbar {
+            background: #151723;
+            border-bottom-color: #303345;
+            color: #fff3ee;
+            box-shadow: 0 1px 14px rgb(0 0 0 / 44%);
+        }
+        body.theme-abyss .topbar-title h2 { color: #fff6f2; }
+        body.theme-abyss .topbar-title p { color: #c8cde8; }
+        body:is(.theme-submarine, .theme-abyss) .date-controls label { color: var(--brand-dark); }
+        body:is(.theme-submarine, .theme-abyss) .date-controls input {
+            border-color: var(--line);
+            background: var(--panel);
+            color: var(--text);
+        }
+        body:is(.theme-submarine, .theme-abyss) .date-controls input::-webkit-calendar-picker-indicator { opacity: 1; }
+        body:is(.theme-submarine, .theme-abyss) input,
+        body:is(.theme-submarine, .theme-abyss) select,
+        body:is(.theme-submarine, .theme-abyss) textarea {
+            background: var(--panel);
+            border-color: var(--line);
+            color: var(--text);
+        }
+        body:is(.theme-submarine, .theme-abyss) .hint,
+        body:is(.theme-submarine, .theme-abyss) .muted { color: var(--muted); }
+        body:is(.theme-submarine, .theme-abyss) .badge {
+            background: var(--soft);
+            border-color: var(--line);
+            color: var(--text);
+        }
+        body:is(.theme-submarine, .theme-abyss) .button.secondary,
+        body:is(.theme-submarine, .theme-abyss) .btn.secondary {
+            background: var(--soft);
+            border-color: var(--line);
+            color: var(--text);
+        }
+        body:is(.theme-submarine, .theme-abyss) table td,
+        body:is(.theme-submarine, .theme-abyss) table th { border-color: var(--line); }
+        body:is(.theme-submarine, .theme-abyss) th {
+            color: var(--text);
+            background: var(--panel-head);
+        }
+        body:is(.theme-submarine, .theme-abyss) tr:hover td,
+        body:is(.theme-submarine, .theme-abyss) tr.clickable-row:hover td { background: var(--soft); }
+        body:is(.theme-submarine, .theme-abyss) .table-shell,
+        body:is(.theme-submarine, .theme-abyss) .card,
+        body:is(.theme-submarine, .theme-abyss) .panel,
+        body:is(.theme-submarine, .theme-abyss) .error-flow-card {
+            background: var(--panel);
+            border-color: var(--line);
+            color: var(--text);
+        }
+        body:is(.theme-submarine, .theme-abyss) .tabbar {
+            background: var(--panel-head);
+            border-bottom-color: var(--line);
+        }
+        body.theme-harbor .nav-icon { background: #cce4dc; color: #347266; }
+        body.theme-harbor .nav-item:hover { background: #d8ece5; color: var(--brand-dark); }
+        body.theme-harbor .sidebar .button.secondary { background: #d2e8df; color: #21463f; }
+        body.theme-harbor .nav-count { color: #6f8a80; }
+        body.theme-meadow .nav-icon { background: #dedfb9; color: #63712a; }
+        body.theme-meadow .nav-item:hover { background: #e5e7c6; color: var(--brand-dark); }
+        body.theme-meadow .sidebar .button.secondary { background: #e1e2bd; color: #3f502f; }
+        body.theme-meadow .nav-count { color: #7d8159; }
         * { box-sizing: border-box; }
         body {
             margin: 0;
@@ -1434,6 +1594,53 @@
         }
         .tags { display: flex; flex-wrap: wrap; gap: 6px; }
         .preview-frame { width: 100%; min-height: 320px; border: 0; background: #fff; }
+        body:is(.theme-submarine, .theme-abyss) .filter-tray,
+        body:is(.theme-submarine, .theme-abyss) .filter-tray::before,
+        body:is(.theme-submarine, .theme-abyss) .card-filter-menu .local-filter-body,
+        body:is(.theme-submarine, .theme-abyss) .modal-card,
+        body:is(.theme-submarine, .theme-abyss) .mail-header-block,
+        body:is(.theme-submarine, .theme-abyss) .trace-details,
+        body:is(.theme-submarine, .theme-abyss) .health-grid > div,
+        body:is(.theme-submarine, .theme-abyss) .insight-card,
+        body:is(.theme-submarine, .theme-abyss) .timeline-marker span,
+        body:is(.theme-submarine, .theme-abyss) .timeline-card,
+        body:is(.theme-submarine, .theme-abyss) .flow-node,
+        body:is(.theme-submarine, .theme-abyss) .error-trail-item,
+        body:is(.theme-submarine, .theme-abyss) .pre-error-card,
+        body:is(.theme-submarine, .theme-abyss) .pre-error-items a,
+        body:is(.theme-submarine, .theme-abyss) .error-flow-card {
+            background: var(--panel);
+            color: var(--text);
+            border-color: var(--line);
+        }
+        body:is(.theme-submarine, .theme-abyss) .flow-phase {
+            background: linear-gradient(180deg, var(--panel) 0, var(--panel-head) 100%);
+        }
+        body:is(.theme-submarine, .theme-abyss) .card-filter-menu summary,
+        body:is(.theme-submarine, .theme-abyss) .check-row,
+        body:is(.theme-submarine, .theme-abyss) .trace-frame,
+        body:is(.theme-submarine, .theme-abyss) .trace-list.compact .trace-frame {
+            background: var(--soft);
+            color: var(--text);
+            border-color: var(--line);
+        }
+        body:is(.theme-submarine, .theme-abyss) .title,
+        body:is(.theme-submarine, .theme-abyss) .title a,
+        body:is(.theme-submarine, .theme-abyss) .meta,
+        body:is(.theme-submarine, .theme-abyss) .type,
+        body:is(.theme-submarine, .theme-abyss) .badge.info,
+        body:is(.theme-submarine, .theme-abyss) .check-count,
+        body:is(.theme-submarine, .theme-abyss) .insight-mini-list span,
+        body:is(.theme-submarine, .theme-abyss) .timeline-marker span,
+        body:is(.theme-submarine, .theme-abyss) .phase-title span:last-child,
+        body:is(.theme-submarine, .theme-abyss) .node-kind,
+        body:is(.theme-submarine, .theme-abyss) .node-meta span,
+        body:is(.theme-submarine, .theme-abyss) .flow-node.query-node .node-title {
+            color: var(--text);
+        }
+        body:is(.theme-submarine, .theme-abyss) .title a:hover,
+        body:is(.theme-submarine, .theme-abyss) .node-link:hover { color: var(--brand); }
+        body:is(.theme-submarine, .theme-abyss) .pre-error-items a:hover { background: var(--soft); }
         @media (max-width: 1180px) {
             .app-shell { grid-template-columns: 220px minmax(0, 1fr); }
             .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1512,7 +1719,7 @@
                 <div class="theme-switcher-controls">
                     <select id="periscope-theme" name="theme" onchange="this.form.submit()">
                         @foreach ($allowedThemes as $theme)
-                            <option value="{{ $theme }}" @selected($periscopeTheme === $theme)>{{ $theme === 'default' ? 'Open Water' : ($theme === 'submarine' ? 'Into the Depths' : ucfirst($theme)) }}</option>
+                            <option value="{{ $theme }}" @selected($periscopeTheme === $theme)>{{ $themeLabels[$theme] }}</option>
                         @endforeach
                     </select>
                 </div>

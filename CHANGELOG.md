@@ -2,6 +2,11 @@
 
 All notable changes to Laravel Periscope will be documented in this file.
 
+## v0.2.1 - 2026-07-16
+
+- Added Harbor, Meadow, and Abyss theme variants to the sidebar theme switcher.
+- Documented the expanded light and dark theme options while keeping Open Water as the default theme.
+
 ## v0.2.0 - 2026-07-15
 
 - Added stronger status badges with dark red 5xx/error states and clearer warning/success styling.
