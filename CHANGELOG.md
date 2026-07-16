@@ -2,6 +2,13 @@
 
 All notable changes to Laravel Periscope will be documented in this file.
 
+## v0.2.2 - 2026-07-16
+
+- Removed redundant submarine-specific style overrides now covered by shared theme rules
+- Narrowed grouped harbor/meadow/abyss selectors to harbor/meadow where abyss has dedicated overrides
+- add --blue color token to root and each theme (submarine, harbor, meadow, abyss)
+- `severity-info` styles now use the new theme-specific blue values
+
 ## v0.2.1 - 2026-07-16
 
 - Added Harbor, Meadow, and Abyss theme variants to the sidebar theme switcher.

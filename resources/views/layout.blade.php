@@ -82,6 +82,7 @@
             --accent-soft: #ddf4fb;
             --green: #11785e;
             --green-soft: #dff4ec;
+            --blue: #2f79b8;
             --yellow: #7a5a12;
             --yellow-soft: #f6efd8;
             --red: #ba2f2f;
@@ -183,6 +184,7 @@
             --accent-soft: #11283b;
             --green: #61ffa8;
             --green-soft: #0f3f2b;
+            --blue: #6dbdff;
             --yellow: #f1d57a;
             --yellow-soft: #3b3414;
             --red: #ff6d6d;
@@ -225,6 +227,7 @@
             --accent-soft: #f8e9dd;
             --green: #1d7458;
             --green-soft: #e1f3eb;
+            --blue: #2f7eb6;
             --yellow: #7b5d10;
             --yellow-soft: #f7efd5;
             --red: #b3333e;
@@ -259,6 +262,7 @@
             --accent-soft: #f4e4dc;
             --green: #4f7427;
             --green-soft: #e8f0d8;
+            --blue: #4b79b8;
             --yellow: #8b6114;
             --yellow-soft: #f7ecd0;
             --red: #b44038;
@@ -293,6 +297,7 @@
             --accent-soft: #202946;
             --green: #7dd7a6;
             --green-soft: #193224;
+            --blue: #8fa8ff;
             --yellow: #e7c66c;
             --yellow-soft: #382f18;
             --red: #ff7777;
@@ -588,13 +593,11 @@
             background: var(--topbar-control-bg);
             color: var(--topbar-control-text);
             cursor: pointer;
-            font-size: 18px;
-            font-weight: 700;
         }
         .filter-menu summary::-webkit-details-marker { display: none; }
         .filter-menu summary svg {
-            width: 18px;
-            height: 18px;
+            width: 17px;
+            height: 17px;
             stroke: currentColor;
             stroke-width: 2;
             fill: none;
@@ -1581,6 +1584,7 @@
             box-shadow: 0 0 0 3px var(--brand-soft);
         }
         .timeline-item.severity-ok .timeline-card { border-left-color: var(--green); }
+        .timeline-item.severity-info .timeline-card { border-left-color: var(--blue); }
         .timeline-item.severity-warn .timeline-card { border-left-color: var(--yellow); }
         .timeline-item.severity-error .timeline-card { border-left-color: var(--red); }
         .timeline-head {
@@ -1677,6 +1681,7 @@
         }
         .flow-node.request-node { border-left-color: var(--accent); }
         .flow-node.severity-ok { border-left-color: var(--green); }
+        .flow-node.severity-info { border-left-color: var(--blue); }
         .flow-node.severity-warn { border-left-color: var(--yellow); }
         .flow-node.severity-error { border-left-color: var(--red); }
         .flow-node.query-node {
