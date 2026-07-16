@@ -82,6 +82,7 @@ Available options:
 return [
     'enabled' => env('PERISCOPE_ENABLED', true),
     'name' => env('PERISCOPE_NAME', 'Periscope'),
+    'theme' => env('PERISCOPE_THEME', 'default'),
     'path' => env('PERISCOPE_PATH', 'periscope'),
     'domain' => env('PERISCOPE_DOMAIN'),
     'middleware' => ['web'],
@@ -100,6 +101,10 @@ return [
 `PERISCOPE_ENABLED=false` disables the Periscope routes.
 
 `PERISCOPE_PATH=internal/periscope` moves the dashboard to a different URL.
+
+`PERISCOPE_THEME=default` uses the built-in `Open Water` theme. Set `PERISCOPE_THEME=submarine` for an 80s navy movie-style dark theme (black/navy surfaces with green radar-like accents).
+
+Users can override this env default for their current browser session via the Periscope sidebar theme switcher.
 
 `PERISCOPE_DB_CONNECTION` can be used when Telescope stores entries on a non-default database connection.
 
