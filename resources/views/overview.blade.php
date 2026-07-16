@@ -7,6 +7,7 @@
     $users = collect($overview['users'] ?? []);
     $statusGroups = $overview['status_groups'] ?? [];
     $jobs = $overview['jobs'] ?? ['total' => 0, 'succeeded' => 0, 'failed' => 0];
+    $scheduledCommands = collect($overview['scheduled_commands'] ?? [])->take(10);
     $slowestRequest = $overview['slowest_request'] ?? null;
     $overviewQuery = request()->except('before');
     $windowFrom = $overview['window_from'] ?? null;
@@ -149,6 +150,39 @@
                         <span class="badge error">{{ number_format((int) ($jobs['failed'] ?? 0)) }} {{ \Illuminate\Support\Str::plural('job', (int) ($jobs['failed'] ?? 0)) }}</span>
                     </a>
                     <a class="button secondary" href="{{ route('periscope.entries.index', array_merge($overviewQuery, ['type' => 'job'])) }}">Open all jobs</a>
+                </div>
+            </section>
+
+            <section class="panel snapshot-card">
+                <div class="panel-title">
+                    <span>Scheduled Commands</span>
+                    <span class="hint">{{ number_format((int) collect($overview['scheduled_commands'] ?? [])->count()) }} in timeframe</span>
+                </div>
+                <div class="snapshot-list compact">
+                    @forelse ($scheduledCommands as $command)
+                        <a class="snapshot-row linked" href="{{ route('periscope.schedule.show', ['commandKey' => $command['command_key'], 'label' => $command['command_label']] + $overviewQuery) }}">
+                            <div>
+                                <strong>{{ \Illuminate\Support\Str::limit($command['command_label'], 84) }}</strong>
+                                @if ($command['expression'])
+                                    <div class="subtitle">{{ $command['expression'] }}</div>
+                                @endif
+                            </div>
+                            <span class="snapshot-actions">
+                                @if ((int) ($command['failed_count'] ?? 0) > 0)
+                                    <span class="badge error">{{ number_format((int) $command['failed_count']) }} failed</span>
+                                @endif
+                                <span class="check-count">{{ number_format((int) ($command['run_count'] ?? 0)) }} {{ \Illuminate\Support\Str::plural('run', (int) ($command['run_count'] ?? 0)) }}</span>
+                            </span>
+                        </a>
+                    @empty
+                        <div class="empty">No scheduled command runs were found in this timeframe.</div>
+                    @endforelse
+
+                    @if (collect($overview['scheduled_commands'] ?? [])->count() > $scheduledCommands->count())
+                        <div class="hint">Showing the most recent {{ $scheduledCommands->count() }} commands.</div>
+                    @endif
+
+                    <a class="button secondary" href="{{ route('periscope.entries.index', array_merge($overviewQuery, ['type' => 'schedule'])) }}">Open all schedule entries</a>
                 </div>
             </section>
 

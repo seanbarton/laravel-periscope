@@ -5,6 +5,7 @@ use TortoiseIT\LaravelPeriscope\Http\Controllers\EntryListController;
 use TortoiseIT\LaravelPeriscope\Http\Controllers\HomeController;
 use TortoiseIT\LaravelPeriscope\Http\Controllers\AssetController;
 use TortoiseIT\LaravelPeriscope\Http\Controllers\LifecycleController;
+use TortoiseIT\LaravelPeriscope\Http\Controllers\ScheduleRunsController;
 use TortoiseIT\LaravelPeriscope\Http\Controllers\ThemeController;
 use Illuminate\Support\Facades\Route;
 
@@ -14,3 +15,4 @@ Route::get('/assets/{asset}', AssetController::class)->name('periscope.assets');
 Route::get('/entries', EntryListController::class)->name('periscope.entries.index');
 Route::get('/entries/{uuid}', EntryController::class)->name('periscope.entries.show');
 Route::get('/entries/{uuid}/lifecycle', LifecycleController::class)->name('periscope.entries.lifecycle');
+Route::get('/schedule/{commandKey}', ScheduleRunsController::class)->name('periscope.schedule.show');
