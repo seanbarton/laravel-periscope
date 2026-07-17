@@ -2,19 +2,30 @@
 
 namespace TortoiseIT\LaravelPeriscope;
 
+use Illuminate\Console\Events\CommandFinished;
+use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Support\Facades\Event;
 use TortoiseIT\LaravelPeriscope\Http\Middleware\Authorize;
 use TortoiseIT\LaravelPeriscope\Http\Middleware\DisableDebugbar;
 use TortoiseIT\LaravelPeriscope\Http\Middleware\DisableTelescopeRecording;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Telescope\IncomingEntry;
 use Laravel\Telescope\Telescope;
+use Laravel\Telescope\Watchers\CommandWatcher;
 
 class LaravelPeriscopeServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        if (! class_exists(\Laravel\Telescope\Telescope::class)) {
+            return;
+        }
+
         $this->mergeConfigFrom(__DIR__.'/../config/periscope.php', 'periscope');
 
+        $this->disableTelescopeCommandWatcher();
+        $this->recordConsoleCommandDurationsForTelescope();
         $this->ignorePeriscopeRequestsInTelescope();
         $this->rejectPeriscopeEntriesInTelescope();
     }
@@ -81,6 +92,66 @@ class LaravelPeriscopeServiceProvider extends ServiceProvider
             }
 
             return ! $this->app['request']->is($this->periscopeTelescopeIgnorePaths());
+        });
+    }
+
+    private function disableTelescopeCommandWatcher(): void
+    {
+        $watchers = [];
+
+        foreach ((array) config('telescope.watchers', []) as $watcher => $configuration) {
+            if (is_int($watcher) && is_string($configuration)) {
+                $watchers[$configuration] = true;
+
+                continue;
+            }
+
+            $watchers[$watcher] = $configuration;
+        }
+
+        if ($watchers === []) {
+            return;
+        }
+
+        $watchers[CommandWatcher::class] = false;
+
+        config([
+            'telescope.watchers' => $watchers,
+        ]);
+    }
+
+    private function recordConsoleCommandDurationsForTelescope(): void
+    {
+        if (! $this->app->runningInConsole()) {
+            return;
+        }
+
+        $startedAt = [];
+
+        Event::listen(CommandStarting::class, function (CommandStarting $event) use (&$startedAt): void {
+            $startedAt[spl_object_id($event->input)] = hrtime(true);
+        });
+
+        Event::listen(CommandFinished::class, function (CommandFinished $event) use (&$startedAt): void {
+            $key = spl_object_id($event->input);
+
+            if (! isset($startedAt[$key])) {
+                return;
+            }
+
+            $durationMs = (hrtime(true) - $startedAt[$key]) / 1_000_000;
+            unset($startedAt[$key]);
+
+            Telescope::recordCommand(
+                IncomingEntry::make([
+                    'command' => $event->command,
+                    'exit_code' => $event->exitCode,
+                    'arguments' => $event->input->getArguments(),
+                    'options' => $event->input->getOptions(),
+                    'hostname' => gethostname(),
+                    'duration_ms' => round($durationMs, 2),
+                ])
+            );
         });
     }
 

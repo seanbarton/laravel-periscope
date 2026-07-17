@@ -151,6 +151,7 @@ class TelescopeEntryRepository
             'avg_duration' => $durations->isNotEmpty() ? round($durations->avg(), 2) : null,
             'slowest_request' => $slowRequests->first(),
             'jobs' => $jobSummary,
+            'scheduled_commands' => $this->scheduledCommandsOverview($filters),
         ];
     }
 
@@ -299,6 +300,92 @@ class TelescopeEntryRepository
             $before = $entries->last()->sequence;
         }
 
+        $durationsByBatch = $this->scheduleRunDurationsByBatch(
+            $results
+                ->filter(fn (object $entry): bool => $entry->type === 'schedule')
+                ->pluck('batch_id')
+                ->filter()
+                ->unique()
+                ->values()
+        );
+
+        if ($durationsByBatch !== []) {
+            $results = $results->map(function (object $entry) use ($durationsByBatch): object {
+                if ($entry->type !== 'schedule') {
+                    return $entry;
+                }
+
+                $duration = $entry->batch_id ? ($durationsByBatch[$entry->batch_id] ?? null) : null;
+
+                if ($duration !== null) {
+                    $entry->summary['duration'] = $duration;
+                }
+
+                return $entry;
+            });
+        }
+
+        return $results;
+    }
+
+    public function scheduledCommandRuns(string $commandKey, EntryFilters $filters): Collection
+    {
+        $wanted = $filters->perPage + 1;
+        $batchSize = max($wanted, min($wanted * 5, 300));
+        $before = $filters->beforeSequence;
+        $results = collect();
+
+        for ($attempt = 0; $attempt < 10 && $results->count() < $wanted; $attempt++) {
+            $entries = $this->connection()
+                ->table('telescope_entries')
+                ->select('sequence', 'uuid', 'batch_id', 'family_hash', 'type', 'content', 'created_at')
+                ->where('type', 'schedule')
+                ->when($filters->from, fn ($query, $from) => $query->where('created_at', '>=', $from))
+                ->when($filters->to, fn ($query, $to) => $query->where('created_at', '<=', $to))
+                ->when($before, fn ($query, $sequence) => $query->where('sequence', '<', $sequence))
+                ->orderByDesc('sequence')
+                ->limit($batchSize)
+                ->get();
+
+            if ($entries->isEmpty()) {
+                break;
+            }
+
+            $before = $entries->last()->sequence;
+
+            $matches = $entries
+                ->map(function (object $entry): object {
+                    $entry->content = $this->decodeContent($entry->content);
+                    $entry->summary = $this->summary($entry);
+
+                    return $entry;
+                })
+                ->filter(fn (object $entry) => $this->scheduleCommandKeyForContent($entry->content) === $commandKey)
+                ->values();
+
+            if ($matches->isNotEmpty()) {
+                $durationsByBatch = $this->scheduleRunDurationsByBatch($matches->pluck('batch_id')->filter()->unique()->values());
+
+                $matches = $matches->map(function (object $entry) use ($durationsByBatch): object {
+                    $duration = $entry->batch_id ? ($durationsByBatch[$entry->batch_id] ?? null) : null;
+
+                    if ($duration !== null) {
+                        $entry->summary['duration'] = $duration;
+                    }
+
+                    return $entry;
+                });
+            }
+
+            if ($matches->isNotEmpty()) {
+                $results = $results->concat($matches)->take($wanted);
+            }
+
+            if ($entries->count() < $batchSize) {
+                break;
+            }
+        }
+
         return $results;
     }
 
@@ -321,6 +408,60 @@ class TelescopeEntryRepository
         ];
     }
 
+    private function scheduledCommandsOverview(EntryFilters $filters): Collection
+    {
+        $entries = $this->connection()
+            ->table('telescope_entries')
+            ->select('batch_id', 'content', 'created_at')
+            ->where('type', 'schedule')
+            ->when($filters->from, fn ($query, $from) => $query->where('created_at', '>=', $from))
+            ->when($filters->to, fn ($query, $to) => $query->where('created_at', '<=', $to))
+            ->orderByDesc('sequence')
+            ->get();
+
+        $durationsByBatch = $this->scheduleRunDurationsByBatch($entries->pluck('batch_id')->filter()->unique()->values());
+
+        return $entries
+            ->map(function (object $entry) use ($durationsByBatch): array {
+                $content = $this->decodeContent($entry->content, true);
+                $result = strtolower($this->stringValue($content['result'] ?? $content['status'] ?? null) ?? '');
+                $duration = $entry->batch_id ? ($durationsByBatch[$entry->batch_id] ?? null) : null;
+
+                if ($duration === null) {
+                    $normalizedDuration = $this->durationFor($content);
+                    $duration = is_numeric($normalizedDuration) ? (float) $normalizedDuration : null;
+                }
+
+                return [
+                    'command_key' => $this->scheduleCommandKeyForContent($content),
+                    'command_label' => $this->scheduleCommandLabelForContent($content),
+                    'expression' => $this->stringValue($content['expression'] ?? $content['cron'] ?? null),
+                    'timezone' => $this->stringValue($content['timezone'] ?? null),
+                    'duration' => $duration !== null ? round((float) $duration, 3) : null,
+                    'last_ran_at' => $entry->created_at,
+                    'is_failed' => str_contains($result, 'fail'),
+                ];
+            })
+            ->groupBy('command_key')
+            ->map(function (Collection $group): array {
+                $first = $group->first();
+                $latestDuration = $group->pluck('duration')->first(fn ($duration): bool => is_numeric($duration));
+
+                return [
+                    'command_key' => $first['command_key'],
+                    'command_label' => $first['command_label'],
+                    'expression' => $group->pluck('expression')->filter()->first(),
+                    'timezone' => $group->pluck('timezone')->filter()->first(),
+                    'last_duration' => $latestDuration !== null ? round((float) $latestDuration, 3) : null,
+                    'run_count' => $group->count(),
+                    'failed_count' => $group->where('is_failed', true)->count(),
+                    'last_ran_at' => $group->pluck('last_ran_at')->filter()->first(),
+                ];
+            })
+            ->sortByDesc('last_ran_at')
+            ->values();
+    }
+
     private function errorScanShouldStop(EntryFilters $filters, float $startedAt, int $scanned): bool
     {
         if (! $filters->errorsOnly) {
@@ -336,6 +477,40 @@ class TelescopeEntryRepository
         $timeoutMs = (int) config('periscope.error_scan_timeout_ms', 1500);
 
         return $timeoutMs > 0 && ((microtime(true) - $startedAt) * 1000) >= $timeoutMs;
+    }
+
+    private function scheduleRunDurationsByBatch(Collection $batchIds): array
+    {
+        if ($batchIds->isEmpty()) {
+            return [];
+        }
+
+        return $this->connection()
+            ->table('telescope_entries')
+            ->select('batch_id')
+            ->selectRaw('LEFT(content, 100000) as content')
+            ->whereIn('batch_id', $batchIds->all())
+            ->whereIn('type', ['query', 'command'])
+            ->get()
+            ->groupBy('batch_id')
+            ->map(function (Collection $entries): ?float {
+                $sum = $entries
+                    ->map(function (object $entry): int|float|string|null {
+                        $content = $this->decodeContent((string) $entry->content, true);
+
+                        return $this->durationFor($content);
+                    })
+                    ->filter(fn ($duration): bool => is_numeric($duration))
+                    ->sum(fn ($duration): float => (float) $duration);
+
+                if ($sum <= 0) {
+                    return null;
+                }
+
+                return round($sum, 3);
+            })
+            ->filter(fn (?float $duration): bool => $duration !== null)
+            ->all();
     }
 
     private function primeErrorBatchCache(Collection $entries, array &$errorBatchCache): void
@@ -553,7 +728,7 @@ class TelescopeEntryRepository
             'subtitle' => $this->subtitleFor($entry->type, $content),
             'status' => $content['response_status'] ?? $content['status'] ?? $content['level'] ?? null,
             'method' => $content['method'] ?? null,
-            'duration' => $content['duration'] ?? $content['time'] ?? null,
+            'duration' => $this->durationFor($content),
             'caller' => $this->callerFor($entry->type, $content),
             'label' => EntryType::labelFor($entry->type),
             'icon' => EntryType::iconFor($entry->type),
@@ -581,6 +756,7 @@ class TelescopeEntryRepository
             'exception' => $this->stringValue($content['class'] ?? null) ?? $this->stringValue($content['message'] ?? null) ?? 'Exception',
             'job' => $this->stringValue($content['name'] ?? null) ?? $this->stringValue($content['job'] ?? null) ?? 'Job',
             'command' => $this->stringValue($content['command'] ?? null) ?? 'Command',
+            'schedule' => $this->scheduleCommandLabelForContent($content),
             'cache' => $this->stringValue($content['key'] ?? null) ?? $this->stringValue($content['name'] ?? null) ?? 'Cache',
             'client_request' => $this->componentFor($content) ?? trim(($this->stringValue($content['method'] ?? null) ?? '').' '.($this->stringValue($content['url'] ?? null) ?? 'HTTP client')),
             'event' => $this->stringValue($content['name'] ?? null) ?? $this->stringValue($content['event'] ?? null) ?? $this->stringValue($content['class'] ?? null) ?? 'Event',
@@ -843,6 +1019,86 @@ class TelescopeEntryRepository
         }
 
         return $this->stringValue($first);
+    }
+
+    private function scheduleCommandLabelForContent(array $content): string
+    {
+        return $this->stringValue($content['command'] ?? null)
+            ?? $this->stringValue($content['description'] ?? null)
+            ?? $this->stringValue($content['name'] ?? null)
+            ?? 'Scheduled command';
+    }
+
+    private function scheduleCommandKeyForContent(array $content): string
+    {
+        $parts = [
+            strtolower(trim($this->scheduleCommandLabelForContent($content))),
+            strtolower(trim($this->stringValue($content['expression'] ?? $content['cron'] ?? null) ?? '')),
+        ];
+
+        return sha1(implode('|', $parts));
+    }
+
+    private function durationFor(array $content): int|float|string|null
+    {
+        $duration = null;
+
+        foreach (['duration', 'time', 'runtime', 'run_time', 'duration_ms', 'runtime_ms', 'elapsed', 'elapsed_time', 'execution_time', 'time_ms', 'milliseconds'] as $key) {
+            if (array_key_exists($key, $content) && $content[$key] !== null && $content[$key] !== '') {
+                $duration = $content[$key];
+                break;
+            }
+        }
+
+        if ($duration === null) {
+            $startedAt = $this->stringValue($content['started_at'] ?? $content['start_at'] ?? null);
+            $finishedAt = $this->stringValue($content['finished_at'] ?? $content['end_at'] ?? null);
+
+            if ($startedAt && $finishedAt) {
+                try {
+                    $duration = max(0, Carbon::parse($startedAt)->diffInMilliseconds(Carbon::parse($finishedAt), false));
+                } catch (\Throwable) {
+                    $duration = null;
+                }
+            }
+        }
+
+        return $this->normalizeDuration($duration);
+    }
+
+    private function normalizeDuration(mixed $duration): int|float|string|null
+    {
+        if (is_int($duration) || is_float($duration)) {
+            return $duration;
+        }
+
+        if (! is_string($duration)) {
+            return null;
+        }
+
+        $value = trim(str_replace(',', '', $duration));
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return str_contains($value, '.') ? (float) $value : (int) $value;
+        }
+
+        if (preg_match('/^(-?\d+(?:\.\d+)?)\s*(ms|msec|millisecond(?:s)?)$/i', $value, $matches) === 1) {
+            return (float) $matches[1];
+        }
+
+        if (preg_match('/^(-?\d+(?:\.\d+)?)\s*(s|sec|second(?:s)?)$/i', $value, $matches) === 1) {
+            return round((float) $matches[1] * 1000, 2);
+        }
+
+        if (preg_match('/^(-?\d+(?:\.\d+)?)\s*(us|µs|microsecond(?:s)?)$/iu', $value, $matches) === 1) {
+            return round((float) $matches[1] / 1000, 3);
+        }
+
+        return null;
     }
 
     private function stringValue(mixed $value): ?string

@@ -19,7 +19,7 @@
     $topbarAction = $topbarAction ?? route('periscope.index');
     $filters = $filters ?? \TortoiseIT\LaravelPeriscope\Support\EntryFilters::fromRequest(request());
     $tags = $tags ?? collect();
-    $primaryTypes = ['request', 'log', 'mail', 'command', 'job'];
+    $primaryTypes = ['request', 'log', 'mail', 'command', 'job', 'schedule'];
     $typeCounts = isset($typeCounts) ? $typeCounts : collect();
     $typeCountByType = $typeCounts->keyBy('type');
     $primaryTypeCounts = collect($primaryTypes)
@@ -796,6 +796,7 @@
             justify-content: flex-end;
             gap: 10px;
             min-width: max-content;
+            padding: 0.25em 0.5em;
         }
         .snapshot-actions .check-count,
         .snapshot-disclosure .check-count,
