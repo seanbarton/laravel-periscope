@@ -300,6 +300,31 @@ class TelescopeEntryRepository
             $before = $entries->last()->sequence;
         }
 
+        $durationsByBatch = $this->scheduleRunDurationsByBatch(
+            $results
+                ->filter(fn (object $entry): bool => $entry->type === 'schedule')
+                ->pluck('batch_id')
+                ->filter()
+                ->unique()
+                ->values()
+        );
+
+        if ($durationsByBatch !== []) {
+            $results = $results->map(function (object $entry) use ($durationsByBatch): object {
+                if ($entry->type !== 'schedule') {
+                    return $entry;
+                }
+
+                $duration = $entry->batch_id ? ($durationsByBatch[$entry->batch_id] ?? null) : null;
+
+                if ($duration !== null) {
+                    $entry->summary['duration'] = $duration;
+                }
+
+                return $entry;
+            });
+        }
+
         return $results;
     }
 
@@ -339,6 +364,20 @@ class TelescopeEntryRepository
                 ->values();
 
             if ($matches->isNotEmpty()) {
+                $durationsByBatch = $this->scheduleRunDurationsByBatch($matches->pluck('batch_id')->filter()->unique()->values());
+
+                $matches = $matches->map(function (object $entry) use ($durationsByBatch): object {
+                    $duration = $entry->batch_id ? ($durationsByBatch[$entry->batch_id] ?? null) : null;
+
+                    if ($duration !== null) {
+                        $entry->summary['duration'] = $duration;
+                    }
+
+                    return $entry;
+                });
+            }
+
+            if ($matches->isNotEmpty()) {
                 $results = $results->concat($matches)->take($wanted);
             }
 
@@ -371,23 +410,34 @@ class TelescopeEntryRepository
 
     private function scheduledCommandsOverview(EntryFilters $filters): Collection
     {
-        return $this->connection()
+        $entries = $this->connection()
             ->table('telescope_entries')
-            ->select('content', 'created_at')
+            ->select('batch_id', 'content', 'created_at')
             ->where('type', 'schedule')
             ->when($filters->from, fn ($query, $from) => $query->where('created_at', '>=', $from))
             ->when($filters->to, fn ($query, $to) => $query->where('created_at', '<=', $to))
             ->orderByDesc('sequence')
-            ->get()
-            ->map(function (object $entry): array {
+            ->get();
+
+        $durationsByBatch = $this->scheduleRunDurationsByBatch($entries->pluck('batch_id')->filter()->unique()->values());
+
+        return $entries
+            ->map(function (object $entry) use ($durationsByBatch): array {
                 $content = $this->decodeContent($entry->content, true);
                 $result = strtolower($this->stringValue($content['result'] ?? $content['status'] ?? null) ?? '');
+                $duration = $entry->batch_id ? ($durationsByBatch[$entry->batch_id] ?? null) : null;
+
+                if ($duration === null) {
+                    $normalizedDuration = $this->durationFor($content);
+                    $duration = is_numeric($normalizedDuration) ? (float) $normalizedDuration : null;
+                }
 
                 return [
                     'command_key' => $this->scheduleCommandKeyForContent($content),
                     'command_label' => $this->scheduleCommandLabelForContent($content),
                     'expression' => $this->stringValue($content['expression'] ?? $content['cron'] ?? null),
                     'timezone' => $this->stringValue($content['timezone'] ?? null),
+                    'duration' => $duration !== null ? round((float) $duration, 3) : null,
                     'last_ran_at' => $entry->created_at,
                     'is_failed' => str_contains($result, 'fail'),
                 ];
@@ -395,12 +445,14 @@ class TelescopeEntryRepository
             ->groupBy('command_key')
             ->map(function (Collection $group): array {
                 $first = $group->first();
+                $latestDuration = $group->pluck('duration')->first(fn ($duration): bool => is_numeric($duration));
 
                 return [
                     'command_key' => $first['command_key'],
                     'command_label' => $first['command_label'],
                     'expression' => $group->pluck('expression')->filter()->first(),
                     'timezone' => $group->pluck('timezone')->filter()->first(),
+                    'last_duration' => $latestDuration !== null ? round((float) $latestDuration, 3) : null,
                     'run_count' => $group->count(),
                     'failed_count' => $group->where('is_failed', true)->count(),
                     'last_ran_at' => $group->pluck('last_ran_at')->filter()->first(),
@@ -425,6 +477,40 @@ class TelescopeEntryRepository
         $timeoutMs = (int) config('periscope.error_scan_timeout_ms', 1500);
 
         return $timeoutMs > 0 && ((microtime(true) - $startedAt) * 1000) >= $timeoutMs;
+    }
+
+    private function scheduleRunDurationsByBatch(Collection $batchIds): array
+    {
+        if ($batchIds->isEmpty()) {
+            return [];
+        }
+
+        return $this->connection()
+            ->table('telescope_entries')
+            ->select('batch_id')
+            ->selectRaw('LEFT(content, 100000) as content')
+            ->whereIn('batch_id', $batchIds->all())
+            ->whereIn('type', ['query', 'command'])
+            ->get()
+            ->groupBy('batch_id')
+            ->map(function (Collection $entries): ?float {
+                $sum = $entries
+                    ->map(function (object $entry): int|float|string|null {
+                        $content = $this->decodeContent((string) $entry->content, true);
+
+                        return $this->durationFor($content);
+                    })
+                    ->filter(fn ($duration): bool => is_numeric($duration))
+                    ->sum(fn ($duration): float => (float) $duration);
+
+                if ($sum <= 0) {
+                    return null;
+                }
+
+                return round($sum, 3);
+            })
+            ->filter(fn (?float $duration): bool => $duration !== null)
+            ->all();
     }
 
     private function primeErrorBatchCache(Collection $entries, array &$errorBatchCache): void

@@ -171,6 +171,9 @@
                                 @if ((int) ($command['failed_count'] ?? 0) > 0)
                                     <span class="badge error">{{ number_format((int) $command['failed_count']) }} failed</span>
                                 @endif
+                                @if (is_numeric($command['last_duration'] ?? null))
+                                    <span class="check-count">{{ number_format((float) $command['last_duration'], 3) }} ms</span>
+                                @endif
                                 <span class="check-count">{{ number_format((int) ($command['run_count'] ?? 0)) }} {{ \Illuminate\Support\Str::plural('run', (int) ($command['run_count'] ?? 0)) }}</span>
                             </span>
                         </a>
