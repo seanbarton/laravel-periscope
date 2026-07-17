@@ -2,6 +2,12 @@
 
 All notable changes to Laravel Periscope will be documented in this file.
 
+## v0.3.1 - 2026-07-17
+
+- Added a schedule runs view for inspecting scheduled command executions from Telescope entries.
+- Added tracking and display of scheduled command durations.
+- Linked schedule run summaries from the request overview navigation.
+
 ## v0.2.2 - 2026-07-16
 
 - Removed redundant submarine-specific style overrides now covered by shared theme rules
